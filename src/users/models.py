@@ -1,5 +1,6 @@
 """The custom User model used in the BMA project."""
 import uuid
+from typing import TypeAlias
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
@@ -38,3 +39,6 @@ class User(AbstractUser):  # type: ignore[django-manager-missing]
         """Bool based on membership of settings.BMA_CURATOR_GROUP_NAME."""
         curator_group, created = Group.objects.get_or_create(name=settings.BMA_CURATOR_GROUP_NAME)
         return curator_group in self.groups.all()
+
+
+UserType: TypeAlias = User

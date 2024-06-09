@@ -76,7 +76,7 @@
                 {# upload / manage links #}
                 {% if not user.is_anonymous %}
                   {% if user.is_creator %}
-                  <li class="nav-item"><a class="nav-link{% if request.resolver_match.url_name == "upload" %} active{% endif %}" href="{% url 'files:upload' %}">Upload</a></li>
+                  <li class="nav-item"><a class="nav-link{% if request.resolver_match.url_name == "upload" %} active{% endif %}" href="{% url 'files:file_upload' %}">Upload</a></li>
                   {% endif %}
                   {% if user.is_creator or user.is_moderator %}
                   <li class="nav-item"><a class="nav-link" href="{% url 'file_admin:files_basefile_changelist' %}">Manage</a></li>

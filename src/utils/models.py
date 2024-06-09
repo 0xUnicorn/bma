@@ -2,8 +2,6 @@
 import uuid
 
 from django.db import models
-from taggit.models import GenericUUIDTaggedItemBase
-from taggit.models import TaggedItemBase
 
 
 class BaseModel(models.Model):
@@ -17,13 +15,3 @@ class BaseModel(models.Model):
         """This is an abstract class."""
 
         abstract = True
-
-
-class UUIDTaggedItem(GenericUUIDTaggedItemBase, TaggedItemBase):
-    """Allows us to tag models with a UUID pk, use it with TaggableManager(through=UUIDTaggedItem)."""
-
-    class Meta:
-        """Pretty names."""
-
-        verbose_name = "Tag"
-        verbose_name_plural = "Tags"

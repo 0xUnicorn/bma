@@ -1,4 +1,4 @@
-"""The filters used for the file_list endpoint."""
+"""The filters used for the file_list API endpoint and django-filters for regular views."""
 import uuid
 from typing import ClassVar
 
@@ -27,6 +27,8 @@ class FileFilters(ListFilters):
     size_lt: int | None = None
     size_gt: int | None = None
     attribution: str | None = None
+    tags: list[str] | None = None
+    taggers: list[uuid.UUID] | None = None
 
 
 class FileFilter(django_filters.FilterSet):

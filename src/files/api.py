@@ -1,14 +1,16 @@
 """The API of fileness."""
 import logging
+import operator
 import uuid
+from functools import reduce
 
 import magic
 from audios.models import Audio
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
+from django.db import models
 from django.db import transaction
-from django.db.models import Q
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -18,6 +20,10 @@ from ninja import Query
 from ninja import Router
 from ninja.files import UploadedFile
 from pictures.models import Picture
+from tags.models import BmaTag
+from tags.models import TaggedFile
+from tags.schema import MultipleTagRequestSchema
+from tags.schema import MultipleTagResponseSchema
 from utils.api import FileApiResponseType
 from utils.schema import ApiMessageSchema
 from videos.models import Video
@@ -56,7 +62,7 @@ def upload(request: HttpRequest, f: UploadedFile, metadata: UploadRequestSchema)
     """API endpoint for file uploads."""
     # make sure the uploading user is in the creators group
     creator_group, created = Group.objects.get_or_create(name=settings.BMA_CREATOR_GROUP_NAME)
-    if creator_group not in request.user.groups.all():  # type: ignore[union-attr]
+    if created or creator_group not in request.user.groups.all():  # type: ignore[union-attr]
         return 403, {"message": "Missing upload permissions"}
 
     # find the filetype using libmagic by reading the first bit of the file
@@ -73,12 +79,16 @@ def upload(request: HttpRequest, f: UploadedFile, metadata: UploadRequestSchema)
     else:
         return 422, {"message": "File type not supported"}
 
+    # get the file metadata
+    data = metadata.dict()
+    # handle tags seperately
+    tags = data.pop("tags", [])
     uploaded_file = Model(
         uploader=request.user,  # type: ignore[misc]
         original=f,
         original_filename=str(f.name),
         file_size=f.size,
-        **metadata.dict(),
+        **data,
     )
 
     if not uploaded_file.title:
@@ -97,16 +107,13 @@ def upload(request: HttpRequest, f: UploadedFile, metadata: UploadRequestSchema)
     # save everything
     uploaded_file.save()
 
-    # if the filetype is picture then use the pictures large_thumbnail as thumbnail,
+    # handle tags
+    if tags:
+        uploaded_file.tags.add_user_tags(*tags, user=request.user)
+
     # this has to be done after .save() to ensure the uuid filename and
     # full path is passed to the imagekit namer
-    if (
-        uploaded_file.filetype == "picture"
-        and uploaded_file.thumbnail_url == settings.DEFAULT_THUMBNAIL_URLS["picture"]
-    ):
-        # use the large_thumbnail size as default
-        uploaded_file.thumbnail_url = uploaded_file.large_thumbnail.url
-        uploaded_file.save(update_fields=["thumbnail_url", "updated"])
+    uploaded_file.set_initial_thumbnail()
 
     # assign permissions (publish_basefile and unpublish_basefile are assigned after moderation)
     uploaded_file.add_initial_permissions()
@@ -130,6 +137,16 @@ def file_list(request: HttpRequest, filters: FileFilters = query) -> FileApiResp
     if filters.albums:
         files = files.filter(memberships__album__in=filters.albums, memberships__period__contains=timezone.now())
 
+    if filters.tags:
+        # __in is OR and we want AND, build a query for .exclude() with all tags we want, and exclude the rest with ~
+        query = reduce(operator.and_, (models.Q(tags__name=tag) for tag in filters.tags))
+        files = files.exclude(~query)
+
+    if filters.taggers:
+        # __in is OR and we want AND, build a query for .exclude() with all taggers we want, and exclude the rest with ~
+        query = reduce(operator.and_, (models.Q(taggedfile__tagger__uuid=tagger) for tagger in filters.taggers))
+        files = files.exclude(~query)
+
     if filters.approved:
         files = files.filter(approved=filters.approved)
 
@@ -140,17 +157,17 @@ def file_list(request: HttpRequest, filters: FileFilters = query) -> FileApiResp
         files = files.filter(deleted=filters.deleted)
 
     if filters.filetypes:
-        query = Q()
+        query = models.Q()
         for filetype in filters.filetypes:
             # this could probably be more clever somehow
             if filetype == FileTypeChoices.picture:
-                query |= Q(instance_of=Picture)
+                query |= models.Q(instance_of=Picture)
             elif filetype == FileTypeChoices.video:
-                query |= Q(instance_of=Video)
+                query |= models.Q(instance_of=Video)
             elif filetype == FileTypeChoices.audio:
-                query |= Q(instance_of=Audio)
+                query |= models.Q(instance_of=Audio)
             elif filetype == FileTypeChoices.document:
-                query |= Q(instance_of=Document)
+                query |= models.Q(instance_of=Document)
         files = files.filter(query)
 
     if filters.uploaders:
@@ -511,3 +528,64 @@ def file_delete(
     # ok go but we don't let users fully delete files for now
     basefile.softdelete()
     return 204, None
+
+
+############## TAGS #########################################################
+@router.post(
+    "/{file_uuid}/tag/",
+    response={
+        201: MultipleTagResponseSchema,
+        403: ApiMessageSchema,
+        404: ApiMessageSchema,
+        422: ApiMessageSchema,
+    },
+    summary="Apply one or more tags to a file. Returns the list of all tags for the file after adding.",
+)
+def file_tag(
+    request: HttpRequest, file_uuid: uuid.UUID, data: MultipleTagRequestSchema, *, check: bool = False
+) -> tuple[int, dict[str, models.QuerySet[BmaTag] | str]]:
+    """API endpoint for tagging a file."""
+    # make sure the tagging user has permissions to see the file
+    basefile = get_object_or_404(BaseFile, uuid=file_uuid)
+    if not basefile.permitted:  # type: ignore[truthy-function]
+        return 403, {"message": "Missing file permissions"}
+
+    # make sure the tagging user is in the curators group
+    curator_group, created = Group.objects.get_or_create(name=settings.BMA_CURATOR_GROUP_NAME)
+    if created or curator_group not in request.user.groups.all():  # type: ignore[union-attr]
+        return 403, {"message": "Missing tagging permissions"}
+
+    # add the tag(s) to the file and return
+    basefile.tags.add_user_tags(*data.tags, user=request.user)
+    return 201, {"bma_response": basefile.tags.weighted.all(), "message": "OK, tag(s) added"}
+
+
+@router.post(
+    "/{file_uuid}/untag/",
+    response={
+        200: MultipleTagResponseSchema,
+        403: ApiMessageSchema,
+        404: ApiMessageSchema,
+        422: ApiMessageSchema,
+    },
+    summary="Unapply one or more tags from a file. Returns the list of all tags for the file (if any) after removing.",
+)
+def file_untag(
+    request: HttpRequest, file_uuid: uuid.UUID, data: MultipleTagRequestSchema, *, check: bool = False
+) -> tuple[int, dict[str, models.QuerySet[BmaTag] | str]]:
+    """API endpoint for untagging a file."""
+    # make sure the untagging user has permissions to see the file
+    basefile = get_object_or_404(BaseFile, uuid=file_uuid)
+    if not basefile.permitted:  # type: ignore[truthy-function]
+        return 403, {"message": "Missing file permissions"}
+
+    # make sure the tagging user is in the curators group
+    curator_group, created = Group.objects.get_or_create(name=settings.BMA_CURATOR_GROUP_NAME)
+    if created or curator_group not in request.user.groups.all():  # type: ignore[union-attr]
+        return 403, {"message": "Missing untagging permissions"}
+
+    # remove the tagging(s) from the file (if present) and return
+    deleted, _ = TaggedFile.objects.filter(
+        content_object=basefile, tagger=request.user, tag__name__in=data.tags
+    ).delete()
+    return 200, {"bma_response": basefile.tags.weighted.all(), "message": f"OK, {deleted} tag(s) removed"}

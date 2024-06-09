@@ -40,6 +40,7 @@ class FileTable(tables.Table):
             "uploader",
             "license",
             "file_size",
+            "tags",
             "approved",
             "published",
             "deleted",

@@ -13,9 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from files.models import BaseFile
 from psycopg2.extras import DateTimeTZRange
-from taggit.managers import TaggableManager
 from users.sentinel import get_sentinel_user
-from utils.models import UUIDTaggedItem
 
 logger = logging.getLogger("bma")
 
@@ -56,11 +54,6 @@ class Album(models.Model):
     description = models.TextField(
         blank=True,
         help_text="The description of this album. Optional. Supports markdown.",
-    )
-
-    tags = TaggableManager(
-        through=UUIDTaggedItem,
-        help_text="The tags for this album.",
     )
 
     files = models.ManyToManyField(

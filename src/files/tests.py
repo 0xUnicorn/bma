@@ -55,9 +55,13 @@ class TestFilesApi(ApiTestBase):
     def test_file_list(self) -> None:  # noqa: PLR0915
         """Test the file_list endpoint."""
         files = [self.file_upload(title=f"title{i}") for i in range(15)]
+        [
+            files.append(self.file_upload(title=f"title{i}", description="tag test", tags=["starttag", f"tag{i}"]))
+            for i in range(15, 20)
+        ]
         response = self.client.get(reverse("api-v1-json:file_list"), headers={"authorization": self.creator2.auth})
         assert response.status_code == 200
-        assert len(response.json()["bma_response"]) == 15
+        assert len(response.json()["bma_response"]) == 20
 
         # test sorting
         response = self.client.get(
@@ -75,7 +79,7 @@ class TestFilesApi(ApiTestBase):
             data={"limit": 1, "sorting": "created_desc"},
             headers={"authorization": self.creator2.auth},
         )
-        assert response.json()["bma_response"][0]["title"] == "title14"
+        assert response.json()["bma_response"][0]["title"] == "title19"
 
         # test offset
         response = self.client.get(
@@ -92,7 +96,7 @@ class TestFilesApi(ApiTestBase):
             data={"uploaders": [self.creator2.uuid, self.user0.uuid]},
             headers={"authorization": self.creator2.auth},
         )
-        assert len(response.json()["bma_response"]) == 15
+        assert len(response.json()["bma_response"]) == 20
         response = self.client.get(
             reverse("api-v1-json:file_list"),
             data={"uploaders": [self.user0.uuid]},
@@ -171,13 +175,13 @@ class TestFilesApi(ApiTestBase):
         response = self.client.get(
             reverse("api-v1-json:file_list"), data={"size": 9478}, headers={"authorization": self.creator2.auth}
         )
-        assert len(response.json()["bma_response"]) == 15
+        assert len(response.json()["bma_response"]) == 20
 
         # test file size_lt filter
         response = self.client.get(
             reverse("api-v1-json:file_list"), data={"size_lt": 10000}, headers={"authorization": self.creator2.auth}
         )
-        assert len(response.json()["bma_response"]) == 15
+        assert len(response.json()["bma_response"]) == 20
         response = self.client.get(
             reverse("api-v1-json:file_list"), data={"size_lt": 1000}, headers={"authorization": self.creator2.auth}
         )
@@ -191,7 +195,7 @@ class TestFilesApi(ApiTestBase):
         response = self.client.get(
             reverse("api-v1-json:file_list"), data={"size_gt": 1000}, headers={"authorization": self.creator2.auth}
         )
-        assert len(response.json()["bma_response"]) == 15
+        assert len(response.json()["bma_response"]) == 20
 
         # test file type filter
         response = self.client.get(
@@ -199,7 +203,7 @@ class TestFilesApi(ApiTestBase):
             data={"filetypes": ["picture"]},
             headers={"authorization": self.creator2.auth},
         )
-        assert len(response.json()["bma_response"]) == 15
+        assert len(response.json()["bma_response"]) == 20
         response = self.client.get(
             reverse("api-v1-json:file_list"),
             data={"filetypes": ["audio", "video", "document"]},
@@ -213,13 +217,172 @@ class TestFilesApi(ApiTestBase):
             data={"licenses": ["CC_ZERO_1_0"]},
             headers={"authorization": self.creator2.auth},
         )
-        assert len(response.json()["bma_response"]) == 15
+        assert len(response.json()["bma_response"]) == 20
         response = self.client.get(
             reverse("api-v1-json:file_list"),
             data={"licenses": ["CC_BY_4_0", "CC_BY_SA_4_0"]},
             headers={"authorization": self.creator2.auth},
         )
         assert len(response.json()["bma_response"]) == 0
+
+        # tag a couple of files using the api
+        for i in range(5):
+            tags = ["foo", f"tag{i}"]
+            response = self.client.post(
+                reverse("api-v1-json:file_tag", kwargs={"file_uuid": files[i]}),
+                data={
+                    "tags": tags,
+                },
+                headers={"authorization": self.creator2.auth},
+                content_type="application/json",
+            )
+            assert response.status_code == 201
+
+        # tag a couple of more files using another user
+        for i in range(2, 10):
+            tags = ["bar", f"tag{i}"]
+            response = self.client.post(
+                reverse("api-v1-json:file_tag", kwargs={"file_uuid": files[i]}),
+                data={
+                    "tags": tags,
+                },
+                headers={"authorization": self.curator6.auth},
+                content_type="application/json",
+            )
+            assert response.status_code == 201
+
+        response = self.client.get(
+            reverse("api-v1-json:file_list"),
+            data={"licenses": ["CC_ZERO_1_0"]},
+            headers={"authorization": self.creator2.auth},
+        )
+
+        # test tag filter
+        for i in range(10):
+            if i <= 2:
+                tags = ["foo", f"tag{i}"]
+            elif i < 5:
+                tags = ["foo", "bar", f"tag{i}"]
+            elif i >= 5:
+                tags = ["bar", f"tag{i}"]
+            response = self.client.get(
+                reverse("api-v1-json:file_list"),
+                data={"tags": tags},
+                headers={"authorization": self.creator2.auth},
+            )
+            assert response.status_code == 200
+            assert len(response.json()["bma_response"]) == 1
+
+        response = self.client.get(
+            reverse("api-v1-json:file_list"),
+            data={"tags": ["foo"]},
+            headers={"authorization": self.creator2.auth},
+        )
+        assert response.status_code == 200
+        assert len(response.json()["bma_response"]) == 5
+
+        response = self.client.get(
+            reverse("api-v1-json:file_list"),
+            data={"tags": ["foo", "bar"]},
+            headers={"authorization": self.creator2.auth},
+        )
+        assert len(response.json()["bma_response"]) == 3
+
+        response = self.client.get(
+            reverse("api-v1-json:file_list"),
+            data={"tags": ["foo", "bar", "tag3"]},
+            headers={"authorization": self.creator2.auth},
+        )
+        assert len(response.json()["bma_response"]) == 1
+
+        # test taggers filter
+        response = self.client.get(
+            reverse("api-v1-json:file_list"),
+            data={"taggers": [self.creator2.uuid]},
+            headers={"authorization": self.creator2.auth},
+        )
+        assert len(response.json()["bma_response"]) == 10
+
+        response = self.client.get(
+            reverse("api-v1-json:file_list"),
+            data={"taggers": [self.creator2.uuid, self.curator6.uuid]},
+            headers={"authorization": self.creator2.auth},
+        )
+        assert len(response.json()["bma_response"]) == 3
+
+        # untag some files and test filtering
+        for i in range(4, 7):
+            tags = [f"tag{i}"]
+            # all 3 files are tagged with tagN, file4 has weight 2
+            response = self.client.get(
+                reverse("api-v1-json:file_list"),
+                data={"tags": tags},
+                headers={"authorization": self.creator2.auth},
+            )
+            assert len(response.json()["bma_response"]) == 1
+            for tag in response.json()["bma_response"][0]["tags"]:
+                if tag["name"] == tags[0]:
+                    assert tag["weight"] == 2 if i == 4 else 1
+
+            # remove curator6 tagN tagging from file
+            response = self.client.post(
+                reverse("api-v1-json:file_untag", kwargs={"file_uuid": files[i]}),
+                data={
+                    "tags": tags,
+                },
+                headers={"authorization": self.curator6.auth},
+                content_type="application/json",
+            )
+            assert response.status_code == 200
+
+            # only file4 is still tagged with tagN, weight for tagN for file4 is now one
+            response = self.client.get(
+                reverse("api-v1-json:file_list"),
+                data={"tags": tags},
+                headers={"authorization": self.creator2.auth},
+            )
+            if i == 4:
+                assert len(response.json()["bma_response"]) == 1
+                for tag in response.json()["bma_response"][0]["tags"]:
+                    if tag["name"] == tags[0]:
+                        assert tag["weight"] == 1
+            else:
+                assert len(response.json()["bma_response"]) == 0
+
+        # curator6 still tagged 8 different files
+        response = self.client.get(
+            reverse("api-v1-json:file_list"),
+            data={"taggers": [self.curator6.uuid]},
+            headers={"authorization": self.creator2.auth},
+        )
+        assert len(response.json()["bma_response"]) == 8
+
+        # remove curator6 bar tagging from file4
+        response = self.client.post(
+            reverse("api-v1-json:file_untag", kwargs={"file_uuid": files[4]}),
+            data={
+                "tags": ["bar"],
+            },
+            headers={"authorization": self.curator6.auth},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+
+        # curator6 now only tagged 7 files
+        response = self.client.get(
+            reverse("api-v1-json:file_list"),
+            data={"taggers": [self.curator6.uuid]},
+            headers={"authorization": self.creator2.auth},
+        )
+        assert len(response.json()["bma_response"]) == 7
+
+        # bar tag is now ony only applied to 7 files
+        response = self.client.get(
+            reverse("api-v1-json:file_list"),
+            data={"tags": ["bar"]},
+            headers={"authorization": self.creator2.auth},
+        )
+        assert len(response.json()["bma_response"]) == 7
 
     def test_file_list_permissions(self) -> None:
         """Test various permissions stuff for the file_list endpoint."""

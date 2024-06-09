@@ -36,6 +36,7 @@ class BaseFileAdmin(admin.ModelAdmin[BaseFile]):
     )
     list_filter = ("license", "uploader", "attribution", "approved", "published", "deleted")
     actions = ("approve", "unapprove", "publish", "unpublish")
+    exclude = ("tags",)
 
     def get_actions(self, request: HttpRequest) -> dict[str, tuple[Callable[..., str], str, str] | None]:
         """Only enable an action if the user has permissions to perform the action."""

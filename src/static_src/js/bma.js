@@ -169,6 +169,7 @@ async function uploadFiles() {
     let license = document.getElementById("id_license");
     metadata.license = license.options[license.selectedIndex].value;
     metadata.attribution = document.getElementById("id_attribution").value;
+    metadata.tags = document.getElementById("id_tags").value.split(" ");
 
     let file_ids = [];
     // loop over formdatas, add metadata to each, and submit each
@@ -177,6 +178,7 @@ async function uploadFiles() {
     for (let fd of formdatas) {
         console.log("adding digest to metadata ...");
         metadata.digest = fd.digest;
+        console.log(metadata);
         console.log("adding metadata to formdata ...");
         fd.append("metadata", JSON.stringify(metadata));
         console.log("calling uploadFile ...");
@@ -222,7 +224,6 @@ async function createAlbum(file_ids, title, description) {
     }
     return response.json();
 }
-
 
 async function uploadFile(fd) {
     console.log("uploading " + fd.digest + "...");

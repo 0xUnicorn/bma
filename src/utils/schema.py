@@ -25,7 +25,6 @@ class RequestMetadataSchema(Schema):
     @staticmethod
     def resolve_username(obj: dict[str, str], context: dict[str, HttpRequest]) -> str:
         """Get the value for the username field."""
-        logger.debug(f"getting username from obj {obj} and context {context}")
         request = context["request"]
         return str(request.user.username)
 
@@ -34,6 +33,13 @@ class RequestMetadataSchema(Schema):
         """Get the value for the client_ip field."""
         request = context["request"]
         return str(request.META["REMOTE_ADDR"])
+
+
+def get_request_metadata_schema(request: HttpRequest) -> RequestMetadataSchema:
+    """Init and populate an instance of the schema."""
+    return RequestMetadataSchema.construct(  # type: ignore[no-any-return]
+        request_time=timezone.now(), username=request.user.username, client_ip=request.META["REMOTE_ADDR"]
+    )
 
 
 class ApiMessageSchema(Schema):

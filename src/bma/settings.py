@@ -36,7 +36,6 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
-    "taggit",
     "django_bootstrap5",
     "fontawesomefree",
     "polymorphic",
@@ -59,6 +58,7 @@ INSTALLED_APPS = [
     "frontpage",
     "albums",
     "widgets",
+    "tags",
 ]
 
 MIDDLEWARE = [

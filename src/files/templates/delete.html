@@ -32,7 +32,7 @@
                     {{ form }}
                     <div class="d-grid gap-2">
                       <input class="btn btn-danger" type="submit" value="Delete file">
-                      <a href="{% url 'files:detail' pk=object.uuid %}" class="btn btn-primary">Cancel</a>
+                      <a href="{% url 'files:file_detail' file_uuid=object.uuid %}" class="btn btn-primary">Cancel</a>
                     </div>
                   </form>
                 </div>

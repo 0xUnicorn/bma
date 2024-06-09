@@ -5,6 +5,7 @@ import uuid
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.models import Group
 from django.db import models
 from django.http import HttpRequest
@@ -15,6 +16,11 @@ from guardian.shortcuts import get_objects_for_user
 from polymorphic.managers import PolymorphicQuerySet
 from polymorphic.models import PolymorphicManager
 from polymorphic.models import PolymorphicModel
+from taggit.managers import TaggableManager
+from taggit.utils import _parse_tags
+from tags.managers import BMATagManager
+from tags.models import TaggedFile
+from users.models import UserType
 from users.sentinel import get_sentinel_user
 
 from .validators import validate_thumbnail_url
@@ -84,7 +90,7 @@ class BaseFileQuerySet(PolymorphicQuerySet):
         """Undelete files in queryset."""
         return self.change_bool(field="deleted", value=False)
 
-    def get_permitted(self, user: User) -> models.QuerySet["BaseFile"]:  # type: ignore[valid-type]
+    def get_permitted(self, user: UserType) -> models.QuerySet["BaseFile"]:
         """Return files that are approved, published and not deleted, plus files where the user has view_basefile."""
         approved_files = self.filter(approved=True, published=True, deleted=False).prefetch_related("uploader")
         perm_files = get_objects_for_user(
@@ -204,6 +210,12 @@ class BaseFile(PolymorphicModel):
         "This must be a string beginning with /static/images/ or /media/",
     )
 
+    tags = TaggableManager(
+        through=TaggedFile,
+        manager=BMATagManager,
+        help_text="The tags for this file",
+    )
+
     @property
     def filetype(self) -> str:
         """The filetype."""
@@ -231,7 +243,7 @@ class BaseFile(PolymorphicModel):
 
     def get_absolute_url(self) -> str:
         """The detail url for the file."""
-        return reverse("files:detail", kwargs={"pk": self.pk})
+        return reverse("files:file_detail", kwargs={"file_uuid": self.pk})
 
     def resolve_links(self, request: HttpRequest | None = None) -> dict[str, str | dict[str, str]]:
         """Return a dict of links for various actions on this object.
@@ -327,8 +339,20 @@ class BaseFile(PolymorphicModel):
         assign_perm("approve_basefile", moderators, self)
         assign_perm("unapprove_basefile", moderators, self)
 
-    def permitted(self, user: User) -> bool:  # type: ignore[valid-type]
+    def permitted(self, user: UserType | AnonymousUser) -> bool:
         """Convenience method to determine if viewing this file is permitted for a user."""
-        if user.has_perm("files.view_basefile", self) or all([self.approved, self.published, not self.deleted]):  # type: ignore[attr-defined]
+        if user.has_perm("files.view_basefile", self) or all([self.approved, self.published, not self.deleted]):
             return True
         return False
+
+    def set_initial_thumbnail(self) -> None:
+        """Set initial thumbnail for this file."""
+        # if the filetype is picture then use the pictures large_thumbnail as thumbnail,
+        if self.filetype == "picture" and self.thumbnail_url == settings.DEFAULT_THUMBNAIL_URLS["picture"]:
+            # use the large_thumbnail size as default
+            self.thumbnail_url = self.large_thumbnail.url
+            self.save(update_fields=["thumbnail_url", "updated"])
+
+    def parse_and_add_tags(self, tags: str, tagger: UserType) -> None:
+        """Parse a string of one or more tags and add tags to the file."""
+        self.tags.add_user_tags(*_parse_tags(tags), user=tagger)

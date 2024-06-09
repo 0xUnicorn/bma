@@ -9,7 +9,7 @@ from django.views.generic import TemplateView
 from documents.models import Document
 from files.models import BaseFile
 from pictures.models import Picture
-from users.models import User
+from users.models import UserType
 from videos.models import Video
 
 logger = logging.getLogger("bma")
@@ -30,7 +30,7 @@ class FrontpageTemplateView(TemplateView):
         return context
 
     def _query_last_6_uploads(
-        self, user: User | AnonymousUser, model: str
+        self, user: UserType | AnonymousUser, model: str
     ) -> QuerySet[Audio | Video | Picture | Document] | None:
         """Get the last 6 published uploads for a model."""
         try:

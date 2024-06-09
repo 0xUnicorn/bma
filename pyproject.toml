@@ -100,6 +100,8 @@ convention = "google"
     "PLR2004", # https://docs.astral.sh/ruff/rules/magic-value-comparison/
     "PT009", # https://docs.astral.sh/ruff/rules/pytest-unittest-assertion/
     "S106", # https://docs.astral.sh/ruff/rules/hardcoded-password-func-arg/
+    "PLR0912", # https://docs.astral.sh/ruff/rules/too-many-branches/
+    "C901", # https://docs.astral.sh/ruff/rules/complex-structure/
 ]
 "*/migrations/*" = [
     "D" # https://docs.astral.sh/ruff/rules/#pydocstyle-d

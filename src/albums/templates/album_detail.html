@@ -17,7 +17,7 @@
     <div class="col-sm-12 col-md-9">
       <div class="row mb-3">
         <div class="col">
-          <h3>{{ object.title }}</h3>
+          <h3>{{ album.title }}</h3>
         </div>
       </div>
       <div class="row mb-3">
@@ -25,7 +25,7 @@
           <div id="thumbnail-carousel" class="splide" aria-label="The carousel with thumbnails." >
             <div class="splide__track">
               <ul class="splide__list">
-                {% for file in object.files.all %}
+                {% for file in album.files.all %}
                 <li class="splide__slide">
                   {% if file.large_thumbnail.url %}
                   <img src="{{ file.large_thumbnail.url }}" alt="">
@@ -44,7 +44,7 @@
           <div id="main-carousel" class="splide" aria-label="Album carousel">
             <div class="splide__track">
               <ul class="splide__list">
-                {% for file in object.files.all %}
+                {% for file in album.files.all %}
                 <li class="splide__slide">
                     <div class="row">
                       <div id="col">
@@ -59,9 +59,13 @@
                       </div>
                     </div>
                     <div class="row mt-3 d-flex justify-content-center">
-                      <div class="col-10">
+                      <div class="col-6">
                         <table class="table">
                           <tbody>
+                            <tr>
+                              <th>UUID</th>
+                              <td>{{ file.pk }}</td>
+                            </tr>
                             <tr>
                               <th>Title</th>
                               <td>{{ file.title }}</td>
@@ -73,7 +77,7 @@
                             <tr>
                               <th>Source</th>
                               <td>
-                                <a href="{{ file.source }}" target="_blank">{{ file.source }}</a>
+                                <a href="{{ file.source }}">{{ file.source }}</a>
                               </td>
                             </tr>
                             <tr>
@@ -84,7 +88,15 @@
                             </tr>
                             <tr>
                               <th>Description</th>
-                              <td>{{ file.description }}</td>
+                              <td>{{ file.description|default:"N/A" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{{ file.filetype|capfirst }} Tags</th>
+                              <td>
+                              {% for tag in file.tags.weighted.all %}
+                                <span class="badge bg-secondary">{{ tag }}</span>
+                              {% endfor %}
+                              </td>
                             </tr>
                           </tbody>
                         </table>
@@ -107,7 +119,7 @@
               Actions
             </button>
             <ul class="dropdown-menu" aria-labelledby="dropdownActionsButton1">
-              {% if object.owner %}
+              {% if album.owner %}
               <li><a class="dropdown-item" href="#">Delete</a></li>
               {% endif %}
             </ul>
@@ -121,14 +133,12 @@
             <div class="card-header">
               <div class="row">
                 <div class="col-6">
-                  <h5 class="card-title">Information</h5>
+                  <h5 class="card-title">Album Information</h5>
                 </div>
                 <div class="col-6 d-flex justify-content-end">
-                  {% if object.owner == user %}
-                  <a href="{% url 'files:update' pk=object.uuid %}" class="text-muted">
+                  {% if album.owner == user %}
                     <i class="fa-solid fa-pen-to-square"></i>
                     <small>Edit</small>
-                  </a>
                   {% endif %}
                 </div>
               </div>
@@ -137,23 +147,26 @@
               <div class="row justfiy-content-between">
                 <div class="col-12">
                   <dl class="row mb-1">
+                    <dt class="col-sm-3 text-truncate">UUID</dt>
+                    <dd class="col-sm-9">{{ album.uuid }}</dd>
+
                     <dt class="col-sm-3 text-truncate">Title</dt>
-                    <dd class="col-sm-9">{{ object.title }}</dd>
+                    <dd class="col-sm-9">{{ album.title }}</dd>
 
                     <dt class="col-sm-3">Files</dt>
-                    <dd class="col-sm-9">{{ object.active_files|length }}</dd>
+                    <dd class="col-sm-9">{{ album.active_files|length }}</dd>
 
                     <dt class="col-sm-3">Owner</dt>
-                    <dd class="col-sm-9">{{ object.owner }}</dd>
+                    <dd class="col-sm-9">{{ album.owner }}</dd>
 
                     <dt class="col-sm-3">Created</dt>
-                    <dd class="col-sm-9">{{ object.created|date:"d/m/y-H:i:s" }}</dd>
+                    <dd class="col-sm-9">{{ album.created|date:"d/m/y-H:i:s" }}</dd>
 
                     <dt class="col-sm-3">Updated</dt>
-                    <dd class="col-sm-9">{{ object.updated|date:"d/m/y-H:i:s" }}</dd>
+                    <dd class="col-sm-9">{{ album.updated|date:"d/m/y-H:i:s" }}</dd>
 
                     <dt class="col-sm-3">Description</dt>
-                    <dd class="col-sm-9"><p>{{ object.description|default:"n/a" }}</p></dd>
+                    <dd class="col-sm-9"><p>{{ album.description|default:"n/a" }}</p></dd>
                   </dl>
                 </div>
               </div>
@@ -166,7 +179,7 @@
         <div class="col mb-3">
           <div class="card">
             <div class="card-header">
-              <h5 class="card-title">Statistics</h5>
+              <h5 class="card-title">Album Statistics</h5>
             </div>
             <div class="card-body">
               <div class="row justfiy-content-between">
@@ -174,14 +187,14 @@
                   <dl class="mb-1">
                     <dt>Licenses:</dt>
                     <dd>
-                      <span class="badge bg-success">License_name ({{ object.active_files|length }}/100%)</span>
-                      <span class="badge bg-secondary">License_name ({{ object.active_files|length }}/100%)</span>
-                      <span class="badge bg-primary">License_name ({{ object.active_files|length }}/100%)</span>
+                      <span class="badge bg-success">License_name ({{ album.active_files|length }}/100%)</span>
+                      <span class="badge bg-secondary">License_name ({{ album.active_files|length }}/100%)</span>
+                      <span class="badge bg-primary">License_name ({{ album.active_files|length }}/100%)</span>
                     </dd>
 
                     <dt>Attributions:</dt>
                     <dd>
-                      <span class="badge bg-primary">{{ object.owner }} ({{ object.active_files|length }}/100%)</span>
+                      <span class="badge bg-primary">{{ album.owner }} ({{ album.active_files|length }}/100%)</span>
                     </dd>
                   </dl>
                 </div>
@@ -191,22 +204,6 @@
         </div>
       </div>
 
-      <div class="row">
-        <div class="col mb-3">
-          <div class="card">
-            <div class="card-header">
-              <h5 class="card-title">Tags</h5>
-            </div>
-            <div class="card-body">
-              {% if object.tags|length > 0 %}
-              <p>{{ object.tags }}</p>
-              {% else %}
-              <p>No tags yet. How about adding one?</p>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 

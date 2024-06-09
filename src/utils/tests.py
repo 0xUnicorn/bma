@@ -74,7 +74,8 @@ class ApiTestBase(TestCase):
         moderators = Group.objects.create(name=settings.BMA_MODERATOR_GROUP_NAME)
         moderators.user_set.add(cls.moderator4, cls.moderator5)
         curators = Group.objects.create(name=settings.BMA_CURATOR_GROUP_NAME)
-        curators.user_set.add(cls.curator6, cls.curator7)
+        # everyone is a curator (except user0 and user1)
+        curators.user_set.add(cls.creator2, cls.creator3, cls.moderator4, cls.moderator5, cls.curator6, cls.curator7)
 
     @classmethod
     def get_access_token(cls, user) -> str:  # noqa: ANN001
@@ -132,7 +133,9 @@ class ApiTestBase(TestCase):
         title: str = "some title",
         file_license: str = "CC_ZERO_1_0",
         attribution: str = "fotoarne",
+        description: str = "",
         original_source: str = "https://example.com/something.png",
+        tags: list[str] | None = None,
         thumbnail_url: str = "",
         return_full: bool = False,
         expect_status_code: int = 201,
@@ -146,6 +149,10 @@ class ApiTestBase(TestCase):
         }
         if thumbnail_url:
             metadata["thumbnail_url"] = thumbnail_url
+        if description:
+            metadata["description"] = description
+        if tags:
+            metadata["tags"] = tags
         with Path(filepath).open("rb") as f:
             response = self.client.post(
                 reverse("api-v1-json:upload"),
@@ -162,11 +169,13 @@ class ApiTestBase(TestCase):
         assert "uuid" in data
         if not title:
             title = Path(filepath).name
-        assert data["title"] == title
-        assert data["attribution"] == attribution
-        assert data["license"] == file_license
-        assert data["source"] == original_source
+        assert data["title"] == title, "wrong title"
+        assert data["attribution"] == attribution, "wrong attribution"
+        assert data["license"] == file_license, "wrong license"
+        assert data["source"] == original_source, "wrong source"
         self.file_uuid = data["uuid"]
+        if tags:
+            assert data["tags"] == [{"name": tag, "weight": 1} for tag in tags]
         if return_full:
             return data
         return data["uuid"]
