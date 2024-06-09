@@ -81,8 +81,9 @@ def upload(request: HttpRequest, f: UploadedFile, metadata: UploadRequestSchema)
 
     # get the file metadata
     data = metadata.dict()
-    # handle tags seperately
-    tags = data.pop("tags", [])
+    # handle tags seperately, and skip empty tags
+    tags = [tag for tag in data.pop("tags", []) if tag]
+    # initiate the model instance
     uploaded_file = Model(
         uploader=request.user,  # type: ignore[misc]
         original=f,

@@ -95,6 +95,8 @@
                               <td>
                               {% for tag in file.tags.weighted.all %}
                                 <span class="badge bg-secondary">{{ tag }}</span>
+                              {% empty %}
+                              N/A
                               {% endfor %}
                               </td>
                             </tr>

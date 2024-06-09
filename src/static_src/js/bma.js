@@ -169,7 +169,12 @@ async function uploadFiles() {
     let license = document.getElementById("id_license");
     metadata.license = license.options[license.selectedIndex].value;
     metadata.attribution = document.getElementById("id_attribution").value;
-    metadata.tags = document.getElementById("id_tags").value.split(" ");
+
+    // TODO: parse tags following the same rules as the default parser in https://django-taggit.readthedocs.io/en/latest/custom_tagging.html#using-a-custom-tag-string-parser
+    tags = document.getElementById("id_tags").value.trim();
+    if (tags.length > 0) {
+        metadata.tags = document.getElementById("id_tags").value.split(" ");
+    };
 
     let file_ids = [];
     // loop over formdatas, add metadata to each, and submit each
