@@ -19,7 +19,7 @@ class BmaTag(TagBase):
 class TaggedFile(ItemBase):
     """BMA uses this instead of the default taggit through model to get the user relation."""
 
-    content_object = models.ForeignKey("files.BaseFile", on_delete=models.CASCADE)
+    content_object = models.ForeignKey("files.BaseFile", on_delete=models.CASCADE, related_name="taggings")
     tagger = models.ForeignKey(
         "users.User",
         on_delete=models.CASCADE,  # delete users taggings when the tagger user is deleted

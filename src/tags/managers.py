@@ -5,6 +5,8 @@ from django.db import models
 from taggit.managers import _TaggableManager
 from users.models import UserType
 
+from .models import BmaTag
+
 
 class BMATagManager(_TaggableManager):
     """Custom taggit manager to include tagging user in lookup_kwargs, which is used to find through relations."""
@@ -43,8 +45,22 @@ class BMATagManager(_TaggableManager):
     @property
     def weighted(self) -> models.QuerySet[Any]:
         """Annotate tags with weights and order with heaviest first and then alphabetically."""
-        # maybe figure out how to include a list of taggers per tag
-        return self.annotate(weight=models.Count("name")).order_by("-weight", "name")  # type: ignore[no-any-return]
+        # maybe figure out a fancier way to include a list of taggings per tag
+        return self.annotate(  # type: ignore[no-any-return]
+            weight=models.Count("name"),
+        ).order_by("-weight", "name", "created")
+
+    @property
+    def weighted_list(self) -> list[BmaTag]:
+        """Add tagger_uuids and instance_taggings and return tags a list."""
+        tags = self.weighted.all()
+        taggings = self.instance.taggings.all()
+        taglist = []
+        for tag in tags:
+            tag.tagger_uuids = taggings.filter(tag=tag).values_list("tagger__uuid", flat=True)
+            tag.instance_taggings = taggings.filter(tag=tag)
+            taglist.append(tag)
+        return taglist
 
     def add_user_tags(self, *tags: str, user: UserType) -> None:
         """Convenience method to add tag(s) for a user."""

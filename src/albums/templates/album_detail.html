@@ -91,7 +91,7 @@
                               <td>{{ file.description|default:"N/A" }}</td>
                             </tr>
                             <tr>
-                                <th>{{ file.filetype|capfirst }} Tags</th>
+                                <th>{{ file.filetype|capfirst }} Tags <small><a href="{% url 'files:file_tags' file_uuid=file.pk %}">Details</a></th>
                               <td>
                               {% for tag in file.tags.weighted.all %}
                                 <span class="badge bg-secondary">{{ tag }}</span>

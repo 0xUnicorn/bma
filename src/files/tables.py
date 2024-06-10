@@ -26,6 +26,13 @@ class FileTable(tables.Table):
             )
         return mark_safe(output)  # noqa: S308
 
+    def render_tags(self, record: BaseFile) -> str:
+        """Render tags in a taggy way."""
+        output = ""
+        for tag in record.tags.weighted.all():
+            output += f'<span class="badge bg-secondary">{tag}</span> '
+        return mark_safe(output)  # noqa: S308
+
     class Meta:
         """Define model, template, fields."""
 

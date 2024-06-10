@@ -51,6 +51,7 @@ class AlbumDetailView(DetailView):  # type: ignore[type-arg]
 
     template_name = "album_detail.html"
     model = Album
+    pk_url_kwarg = "album_uuid"
 
 
 class AlbumCreateView(LoginRequiredMixin, CreateView):  # type: ignore[type-arg]

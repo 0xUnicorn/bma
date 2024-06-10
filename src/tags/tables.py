@@ -8,8 +8,6 @@ from .models import TaggedFile
 class TagTable(tables.Table):
     """Defines the django-tables2 used to show tags."""
 
-    name = tables.Column(linkify=True)
-
     class Meta:
         """Define model, template, fields."""
 

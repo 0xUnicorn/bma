@@ -10,5 +10,5 @@ app_name = "albums"
 urlpatterns = [
     path("", AlbumListView.as_view(), name="album_list"),
     path("create/", AlbumCreateView.as_view(), name="album_create"),
-    path("<pk>/", AlbumDetailView.as_view(), name="album_detail"),
+    path("<uuid:album_uuid>/", AlbumDetailView.as_view(), name="album_detail"),
 ]

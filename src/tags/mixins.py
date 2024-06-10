@@ -9,5 +9,11 @@ class TagViewMixin:
 
     def setup(self, request: HttpRequest, *args: str, **kwargs: dict[str, str]) -> None:
         """Get tag object from url. Requires self.file to be set."""
+        super().setup(request, *args, **kwargs)  # type: ignore[misc]
         self.tag = get_object_or_404(self.file.tags.weighted.all(), name=kwargs["tag_name"])  # type: ignore[attr-defined]
-        super().setup(request, **kwargs)  # type: ignore[misc]
+
+    def get_context_data(self, **kwargs: dict[str, str]) -> dict[str, str]:
+        """Add tag to context."""
+        context = super().get_context_data(**kwargs)  # type: ignore[misc]
+        context["tag"] = self.tag
+        return context  # type: ignore[no-any-return]

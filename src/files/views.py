@@ -70,6 +70,7 @@ class FileDetailView(DetailView):  # type: ignore[type-arg]
     template_name = "detail.html"
     model = BaseFile
     pk_url_kwarg = "file_uuid"
+    context_object_name = "file"
 
     def get_object(self, queryset: QuerySet[BaseFile] | None = None) -> BaseFile:
         """Check permissions before returning the file."""
@@ -176,7 +177,7 @@ class FileTagListView(SingleTableMixin, FilterView):
 
     def setup(self, request: HttpRequest, *args: str, **kwargs: dict[str, str]) -> None:
         """Get file object from url."""
-        self.file = get_object_or_404(BaseFile.bmanager.get_permitted(user=self.request.user), uuid=kwargs["file_uuid"])
+        self.file = get_object_or_404(BaseFile.bmanager.get_permitted(user=request.user), uuid=kwargs["file_uuid"])
         super().setup(request, *args, **kwargs)
 
     def get_queryset(self) -> QuerySet[BaseFile]:
@@ -192,17 +193,19 @@ class CuratorGroupRequiredMixin:
         curator_group, created = Group.objects.get_or_create(name=settings.BMA_CURATOR_GROUP_NAME)
         if curator_group not in request.user.groups.all():  # type: ignore[union-attr]
             raise PermissionDenied
+        super().setup(request, *args, **kwargs)  # type: ignore[misc]
 
 
 class FileTagCreateView(CuratorGroupRequiredMixin, FileViewMixin, FormView):  # type: ignore[type-arg]
     """View to add one or more tags to a file."""
 
     form_class = TagForm
+    template_name = "file_tag_create.html"
 
     def form_valid(self, form: TagForm) -> HttpResponse:
         """Apply the tag(s)."""
         self.file.parse_and_add_tags(tags=form.cleaned_data["tags"], tagger=self.request.user)
-        messages.success(self.request, "Tagging(s) added.")
+        messages.success(self.request, "Tag(s) added.")
         return redirect(self.file)
 
 
@@ -214,17 +217,17 @@ class FileTagDetailView(FileViewMixin, TagViewMixin, SingleTableMixin, ListView)
     model = TaggedFile
 
 
-class FileTagDeleteView(FileViewMixin, TagViewMixin, DeleteView):  # type: ignore[type-arg,misc]
+class FileTagDeleteView(TagViewMixin, FileViewMixin, DeleteView):  # type: ignore[type-arg,misc]
     """File untagging view. Removes a users tagging of a tag from a file."""
 
     model = TaggedFile
 
     def get_object(self, queryset: QuerySet[TaggedFile] | None = None) -> TaggedFile:
         """Get the TaggedFile object if it exists."""
-        return get_object_or_404(self.file.tags.get(tagger=self.request.user))  # type: ignore[no-any-return]
+        return get_object_or_404(self.file.taggings.all(), tag=self.tag, tagger=self.request.user)  # type: ignore[no-any-return]
 
-    def delete(self, request: HttpRequest, *args: str, **kwargs: dict[str, str]) -> HttpResponse:
+    def form_valid(self, form: Form) -> HttpResponse:
         """Untag and redirect to file details."""
         self.object.delete()
-        messages.success(self.request, "Tagging deleted.")
+        messages.success(self.request, "Tag deleted.")
         return redirect(self.file)
