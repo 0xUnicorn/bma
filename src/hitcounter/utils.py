@@ -104,7 +104,9 @@ def get_ip(request: HttpRequest) -> str:
     """
     # this will return None if REMOTE_ADDR is missing from the request
     ip_address = request.headers.get("X-Forwarded-For", request.META.get("REMOTE_ADDR", ""))
+    if "," in ip_address:
+        ip_address = ip_address.split(",")[0]
     # this will raise an exception if the IP is not valid
-    validate_ip(ip_address)
+    validate_ip(ip_address.strip())
     # all good
     return ip_address
