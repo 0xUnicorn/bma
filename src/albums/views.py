@@ -120,7 +120,7 @@ class AlbumUpdateView(CuratorGroupRequiredMixin, UpdateView):  # type: ignore[ty
         album = form.save(commit=False)  # type: ignore[attr-defined]
         album.owner = self.request.user
         album.save()
-        album.update_members(*form.cleaned_data["files"], replace=False)
+        album.update_members(*[f.pk for f in form.cleaned_data["files"]], replace=False)
         return HttpResponseRedirect(album.get_absolute_url())
 
 
