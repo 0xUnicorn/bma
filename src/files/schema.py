@@ -2,11 +2,9 @@
 import uuid
 from pathlib import Path
 
-from django.db import models
 from django.http import HttpRequest
 from ninja import ModelSchema
 from ninja import Schema
-from tags.models import BmaTag
 from tags.schema import TagResponseSchema
 from utils.permissions import get_object_permissions_schema
 from utils.schema import ApiResponseSchema
@@ -143,11 +141,6 @@ class FileResponseSchema(ModelSchema):
     def resolve_permissions(obj: BaseFile, context: dict[str, HttpRequest]) -> ObjectPermissionSchema:
         """Get the value for the permissions field with all file permissions."""
         return get_object_permissions_schema(obj, context["request"])
-
-    @staticmethod
-    def resolve_tags(obj: BaseFile, context: dict[str, HttpRequest]) -> models.QuerySet[BmaTag]:
-        """Get weighted tags."""
-        return obj.tags.weighted.all()  # type: ignore[no-any-return]
 
 
 class SingleFileResponseSchema(ApiResponseSchema):

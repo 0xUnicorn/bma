@@ -37,8 +37,11 @@ class BornHackSocialAccountAdapter(DefaultSocialAccountAdapter):
         # set username on the user object
         user_username(sociallogin.user, data.get("username"))
 
-        # set public_credit_name on the user object
-        user_field(sociallogin.user, "public_credit_name", data.get("public_credit_name"))
+        # set initial handle on the user object to the bornhack username
+        user_field(sociallogin.user, "handle", data.get("username"))
+
+        # set initial display_name on the user object to the bornhack profiles public_credit_name
+        user_field(sociallogin.user, "display_name", data.get("public_credit_name"))
 
         # set description on the user object
         user_field(sociallogin.user, "description", data.get("description"))

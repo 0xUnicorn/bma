@@ -1,5 +1,4 @@
 """The file admin site."""
-from collections.abc import Callable
 
 from django.contrib import admin
 from django.contrib import messages
@@ -8,8 +7,6 @@ from django.http import HttpRequest
 from django.utils.safestring import mark_safe
 from guardian.shortcuts import get_objects_for_user
 from utils.admin import file_admin
-from utils.permissions import get_all_group_object_permissions
-from utils.permissions import get_all_user_object_permissions
 
 from .models import BaseFile
 
@@ -35,25 +32,11 @@ class BaseFileAdmin(admin.ModelAdmin[BaseFile]):
         "deleted",
     )
     list_filter = ("license", "uploader", "attribution", "approved", "published", "deleted")
-    actions = ("approve", "unapprove", "publish", "unpublish")
+    actions = ("approve", "unapprove", "publish", "unpublish", "softdelete", "undelete")
     exclude = ("tags",)
 
-    def get_actions(self, request: HttpRequest) -> dict[str, tuple[Callable[..., str], str, str] | None]:
-        """Only enable an action if the user has permissions to perform the action."""
-        actions = super().get_actions(request)
-        valid_actions = actions.copy()
-        for action in actions:
-            if not get_objects_for_user(request.user, f"{action}_basefile", klass=BaseFile).exists():
-                # user does not have permission to perform this action on any objects,
-                # remove it from the actions list
-                del valid_actions[action]
-        return valid_actions
-
     def get_queryset(self, request: HttpRequest) -> QuerySet[BaseFile]:
-        """Only return files the user has permissions to see."""
-        if request.user.is_superuser:
-            # superusers can see all files
-            return super().get_queryset(request)
+        """Only return files the user has permission to see and use the bmanager."""
         return BaseFile.bmanager.get_permitted(user=request.user)  # type: ignore[no-any-return]
 
     def delete_queryset(self, request: HttpRequest, queryset: QuerySet[BaseFile]) -> None:
@@ -81,7 +64,7 @@ class BaseFileAdmin(admin.ModelAdmin[BaseFile]):
         return False
 
     def has_delete_permission(self, request: HttpRequest, obj: BaseFile | None = None) -> bool:
-        """Called by the admin to check if the user has permission to delete this type of/this specific object."""
+        """Called to check if the user has permission to really (non-soft) delete this type of/this specific object."""
         if obj is None:
             return True
         if request.user.has_perm("delete_basefile", obj):
@@ -144,7 +127,7 @@ class BaseFileAdmin(admin.ModelAdmin[BaseFile]):
         self.message_user(
             request,
             f"{selected} files selected to be {action}, "
-            f"out of those {valid} files had needed permission and expected status, "
+            f"out of those {valid} files had needed permission, "
             f"and out of those {updated} files were successfully {action}",
             status,
         )
@@ -202,7 +185,7 @@ class BaseFileAdmin(admin.ModelAdmin[BaseFile]):
         permissions=["softdelete_basefile"],
     )
     def softdelete(self, request: HttpRequest, queryset: QuerySet[BaseFile]) -> None:
-        """Admin action to delete files."""
+        """Admin action to softdelete files."""
         selected = queryset.count()
         valid = get_objects_for_user(request.user, "files.softdelete_basefile", klass=queryset)
         valids = valid.count()
@@ -224,9 +207,9 @@ class BaseFileAdmin(admin.ModelAdmin[BaseFile]):
     def permissions(self, obj: BaseFile) -> str:
         """Return all defined permissions for this object."""
         output = ""
-        for perm in get_all_user_object_permissions(obj):
+        for perm in obj.user_permissions.all():
             output += f"user '{perm.user.username}' has perm '{perm.permission.codename}'<br>"
-        for perm in get_all_group_object_permissions(obj):
+        for perm in obj.group_permissions.all():
             output += f"group '{perm.group}' has perm '{perm.permission.codename}'<br>"
         return mark_safe(output)  # noqa: S308
 

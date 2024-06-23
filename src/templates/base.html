@@ -38,7 +38,7 @@
     <!-- https://htmx.org/extensions/json-enc/ -->
     <script src="{% static 'js/vendor/htmx/json-enc.js' %}" defer></script>
 
-    <!-- slideshows -->
+    <!-- slideshows IS THIS STILL USED? -->
     <script src="{% static "js/vendor/spotlight.v0.7.8.bundle.js" %}" defer></script>
 
     <!-- https://github.com/Mobius1/Selectable -->
@@ -74,22 +74,22 @@
                 <li class="nav-item"><a class="nav-link{% if request.resolver_match.url_name == "album_list" %} active{% endif %}" href="{% url 'albums:album_list' %}">Albums</a></li>
 
                 {# upload / manage links #}
-                {% if not user.is_anonymous %}
-                  {% if user.is_creator %}
+                {% if not request.user.is_anonymous %}
+                  {% if request.user.is_creator %}
                   <li class="nav-item"><a class="nav-link{% if request.resolver_match.url_name == "upload" %} active{% endif %}" href="{% url 'files:file_upload' %}">Upload</a></li>
                   {% endif %}
-                  {% if user.is_creator or user.is_moderator %}
+                  {% if request.user.is_creator or request.user.is_moderator %}
                   <li class="nav-item"><a class="nav-link" href="{% url 'file_admin:files_basefile_changelist' %}">Manage</a></li>
                   {% endif %}
                 {% endif %}
 
                 {# django admin #}
-                {% if user.is_staff %}
+                {% if request.user.is_staff %}
                 <li class="nav-item"><a class="nav-link" href="{% url 'admin:index' %}">Django Admin</a></li>
                 {% endif %}
 
                 {# login / logout link #}
-                {% if user.is_anonymous %}
+                {% if request.user.is_anonymous %}
                 <li class="nav-item"><a class="nav-link{% if request.resolver_match.url_name == "account_login" %} active{% endif %}" href="{% url 'account_login' %}">Login</a></li>
                 {% else %}
                 <li class="nav-item dropdown">

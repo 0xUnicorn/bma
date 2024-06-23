@@ -42,11 +42,19 @@ class UploadForm(forms.ModelForm[BaseFile]):
         }
 
 
-class UpdateForm(forms.ModelForm[BaseFile]):
-    """The file update form."""
+class FileMultipleActionForm(forms.Form):
+    """The file action form used with the file list table."""
 
-    class Meta:
-        """Set model and fields."""
+    action = forms.ChoiceField(
+        choices=(
+            ("", "----"),
+            ("create_album", "Create New Album With Files"),
+            ("add_to_album", "Add Files To Existing Album"),
+        )
+    )
 
-        model = BaseFile
-        fields = ("title", "attribution", "description")
+    selection = forms.MultipleChoiceField(
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    fromurl = forms.CharField(help_text="The URL to return to after a failed form validation.")

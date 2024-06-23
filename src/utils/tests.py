@@ -32,7 +32,7 @@ class ApiTestBase(TestCase):
         """Test setup."""
         # disable logging
         logging.disable(logging.CRITICAL)
-        cls.client = Client(enforce_csrf_checks=True)
+        cls.client = Client(enforce_csrf_checks=False)
 
         # create 2 regular users, 2 creators, 2 moderators, 2 curators, and 1 superuser
         for i in range(9):
@@ -49,6 +49,7 @@ class ApiTestBase(TestCase):
                 kwargs["username"] = "superuser"
                 kwargs["is_superuser"] = True
                 kwargs["is_staff"] = True
+            kwargs["handle"] = kwargs["username"]
             user = UserFactory.create(**kwargs)
             user.set_password("secret")
             user.save()
@@ -69,11 +70,11 @@ class ApiTestBase(TestCase):
             cls.client.logout()
 
         # create groups and add users
-        creators = Group.objects.create(name=settings.BMA_CREATOR_GROUP_NAME)
+        creators, _ = Group.objects.get_or_create(name=settings.BMA_CREATOR_GROUP_NAME)
         creators.user_set.add(cls.creator2, cls.creator3)
-        moderators = Group.objects.create(name=settings.BMA_MODERATOR_GROUP_NAME)
+        moderators, _ = Group.objects.get_or_create(name=settings.BMA_MODERATOR_GROUP_NAME)
         moderators.user_set.add(cls.moderator4, cls.moderator5)
-        curators = Group.objects.create(name=settings.BMA_CURATOR_GROUP_NAME)
+        curators, _ = Group.objects.get_or_create(name=settings.BMA_CURATOR_GROUP_NAME)
         # everyone is a curator (except user0 and user1)
         curators.user_set.add(cls.creator2, cls.creator3, cls.moderator4, cls.moderator5, cls.curator6, cls.curator7)
 
@@ -125,8 +126,9 @@ class ApiTestBase(TestCase):
         user.tokeninfo = json.loads(response.content)
         return f"Bearer {user.tokeninfo['access_token']}"
 
+    @classmethod
     def file_upload(  # noqa: PLR0913
-        self,
+        cls,
         *,
         uploader: str = "creator2",
         filepath: str = settings.BASE_DIR / "static_src/images/logo_wide_black_500_RGB.png",
@@ -154,13 +156,13 @@ class ApiTestBase(TestCase):
         if tags:
             metadata["tags"] = tags
         with Path(filepath).open("rb") as f:
-            response = self.client.post(
+            response = cls.client.post(
                 reverse("api-v1-json:upload"),
                 {
                     "f": f,
                     "metadata": json.dumps(metadata),
                 },
-                headers={"authorization": getattr(self, uploader).auth},
+                headers={"authorization": getattr(cls, uploader).auth},
             )
         assert response.status_code == expect_status_code
         if expect_status_code == 422:
@@ -173,15 +175,15 @@ class ApiTestBase(TestCase):
         assert data["attribution"] == attribution, "wrong attribution"
         assert data["license"] == file_license, "wrong license"
         assert data["source"] == original_source, "wrong source"
-        self.file_uuid = data["uuid"]
+        cls.file_uuid = data["uuid"]
         if tags:
-            assert data["tags"] == [{"name": tag, "weight": 1} for tag in tags]
-        if return_full:
-            return data
-        return data["uuid"]
+            tags.sort()
+            assert data["tags"] == [{"name": tag, "slug": tag, "weight": 1} for tag in tags]
+        return data if return_full else data["uuid"]
 
+    @classmethod
     def album_create(
-        self,
+        cls,
         *,
         title: str = "album title here",
         description: str = "album description here",
@@ -189,15 +191,95 @@ class ApiTestBase(TestCase):
         creator: str = "curator6",
     ) -> str:
         """Create an album optionally with some files."""
-        response = self.client.post(
+        response = cls.client.post(
             reverse("api-v1-json:album_create"),
             {
                 "title": title,
                 "description": description,
                 "files": files if files else [],
             },
-            headers={"authorization": getattr(self, creator).auth},
+            headers={"authorization": getattr(cls, creator).auth},
             content_type="application/json",
         )
         assert response.status_code == 201
         return response.json()["bma_response"]["uuid"]
+
+    @classmethod
+    def admin_files_action(cls, *file_uuids: str, username: str, action: str) -> None:
+        """Approve or publish or other action on the files using the admin."""
+        # make moderator4 approve 5 of the files owned by creator2 (using the admin)
+        adminurl = reverse("file_admin:files_basefile_changelist")
+        data = {"action": action, "_selected_action": file_uuids}
+        cls.client.login(username=username, password="secret")
+        response = cls.client.post(adminurl, data, follow=True)
+        assert response.status_code == 200
+
+    @classmethod
+    def api_album_create(
+        cls,
+        username: str,
+        title: str = "album title",
+        description: str = "album description goes here",
+        files: list[str] | None = None,
+    ) -> str:
+        """Create album using the api and return the album uuid."""
+        response = cls.client.post(
+            reverse("api-v1-json:album_create"),
+            {
+                "title": title,
+                "description": description,
+                "files": files,
+            },
+            headers={"authorization": getattr(cls, username).auth},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        return response.json()["bma_response"]["uuid"]
+
+    @classmethod
+    def upload_initial_test_files(cls) -> None:
+        """Upload some files for testing."""
+        # upload some files as creator2
+        cls.files = [cls.file_upload(title=f"creator2 file {i}", tags=[f"tag{i}", "foo"]) for i in range(11)]
+        cls.creator2_album = cls.api_album_create(username="curator6", title="creator2 first 11", files=cls.files)
+
+        # upload some files as creator3
+        for i in range(9):
+            cls.files.append(cls.file_upload(uploader="creator3", title=f"creator3 file {i}", tags=[f"tag{i}", "bar"]))
+        cls.creator3_album = cls.api_album_create(username="curator7", title="creator3 first 9", files=cls.files[10:20])
+
+        # upload with attribution
+        cls.files.append(cls.file_upload(attribution="fotoflummer"))
+        cls.files.append(cls.file_upload(attribution="fotofonzy"))
+
+        # upload with licenses
+        cls.files.append(cls.file_upload(file_license="CC_BY_4_0"))
+        cls.files.append(cls.file_upload(file_license="CC_BY_SA_4_0"))
+
+        # create an album with all files
+        cls.allfiles_album = cls.api_album_create(username="curator7", title="all files", files=cls.files)
+
+    @classmethod
+    def change_initial_test_files(cls) -> None:
+        """Change some of the uploaded files."""
+        # approve some of creator2 files as moderator4
+        cls.admin_files_action(*cls.files[:5], username="moderator4", action="approve")
+
+        # publish some of creator2 files
+        cls.admin_files_action(*cls.files[2:7], username="creator2", action="publish")
+
+        # softdelete some of creator3 files
+        cls.admin_files_action(*cls.files[11:16], username="creator3", action="softdelete")
+
+        # tag a couple of more files
+        for i in range(2, 5):
+            tags = ["testtag", "more 🔥"]
+            response = cls.client.post(
+                reverse("api-v1-json:file_tag", kwargs={"file_uuid": cls.files[i]}),
+                data={
+                    "tags": tags,
+                },
+                headers={"authorization": cls.curator6.auth},
+                content_type="application/json",
+            )
+            assert response.status_code == 201

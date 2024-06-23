@@ -83,6 +83,7 @@ def upload(request: HttpRequest, f: UploadedFile, metadata: UploadRequestSchema)
     data = metadata.dict()
     # handle tags seperately, and skip empty tags
     tags = [tag for tag in data.pop("tags", []) if tag]
+
     # initiate the model instance
     uploaded_file = Model(
         uploader=request.user,  # type: ignore[misc]
@@ -92,14 +93,15 @@ def upload(request: HttpRequest, f: UploadedFile, metadata: UploadRequestSchema)
         **data,
     )
 
+    # title defaults to the original filename
     if not uploaded_file.title:
-        # title defaults to the original filename
         uploaded_file.title = uploaded_file.original_filename
 
+    # thumbnail url was not specified, use the default for the filetype
     if not uploaded_file.thumbnail_url:
-        # thumbnail url was not specified, use the default for the filetype
         uploaded_file.thumbnail_url = settings.DEFAULT_THUMBNAIL_URLS[uploaded_file.filetype]
 
+    # validate everything and return 422 if something is fucky
     try:
         uploaded_file.full_clean()
     except ValidationError:
@@ -145,7 +147,7 @@ def file_list(request: HttpRequest, filters: FileFilters = query) -> FileApiResp
 
     if filters.taggers:
         # __in is OR and we want AND, build a query for .exclude() with all taggers we want, and exclude the rest with ~
-        query = reduce(operator.and_, (models.Q(taggedfile__tagger__uuid=tagger) for tagger in filters.taggers))
+        query = reduce(operator.and_, (models.Q(taggings__tagger__uuid=tagger) for tagger in filters.taggers))
         files = files.exclude(~query)
 
     if filters.approved:
@@ -558,7 +560,7 @@ def file_tag(
 
     # add the tag(s) to the file and return
     basefile.tags.add_user_tags(*data.tags, user=request.user)
-    return 201, {"bma_response": basefile.tags.weighted.all(), "message": "OK, tag(s) added"}
+    return 201, {"bma_response": basefile.tags.all(), "message": "OK, tag(s) added"}
 
 
 @router.post(
@@ -589,4 +591,4 @@ def file_untag(
     deleted, _ = TaggedFile.objects.filter(
         content_object=basefile, tagger=request.user, tag__name__in=data.tags
     ).delete()
-    return 200, {"bma_response": basefile.tags.weighted.all(), "message": f"OK, {deleted} tag(s) removed"}
+    return 200, {"bma_response": basefile.tags.all(), "message": f"OK, {deleted} tag(s) removed"}

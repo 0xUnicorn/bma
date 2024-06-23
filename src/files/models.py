@@ -2,6 +2,7 @@
 import contextlib
 import logging
 import uuid
+from typing import TypeAlias
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -10,11 +11,10 @@ from django.contrib.auth.models import Group
 from django.db import models
 from django.http import HttpRequest
 from django.urls import reverse
-from django.utils import timezone
+from guardian.models import GroupObjectPermissionBase
+from guardian.models import UserObjectPermissionBase
 from guardian.shortcuts import assign_perm
-from guardian.shortcuts import get_objects_for_user
-from polymorphic.managers import PolymorphicQuerySet
-from polymorphic.models import PolymorphicManager
+from polymorphic.managers import PolymorphicManager
 from polymorphic.models import PolymorphicModel
 from taggit.managers import TaggableManager
 from taggit.utils import _parse_tags
@@ -23,12 +23,13 @@ from tags.models import TaggedFile
 from users.models import UserType
 from users.sentinel import get_sentinel_user
 
+from .managers import BaseFileManager
+from .managers import BaseFileQuerySet
 from .validators import validate_thumbnail_url
 
 logger = logging.getLogger("bma")
 
 User = get_user_model()
-
 
 license_urls = {
     "CC_ZERO_1_0": "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -57,52 +58,6 @@ class FileTypeChoices(models.TextChoices):
     document = ("document", "Document")
 
 
-class BaseFileQuerySet(PolymorphicQuerySet):
-    """Custom queryset and manager for file operations."""
-
-    def change_bool(self, *, field: str, value: bool) -> int:
-        """Change a bool field on a queryset of files."""
-        kwargs = {field: value, "updated": timezone.now()}
-        self.update(**kwargs)
-        return int(self.count())
-
-    def approve(self) -> int:
-        """Approve files in queryset."""
-        return self.change_bool(field="approved", value=True)
-
-    def unapprove(self) -> int:
-        """Unapprove files in queryset."""
-        return self.change_bool(field="approved", value=False)
-
-    def publish(self) -> int:
-        """Publish files in queryset."""
-        return self.change_bool(field="published", value=True)
-
-    def unpublish(self) -> int:
-        """Unpublish files in queryset."""
-        return self.change_bool(field="published", value=False)
-
-    def delete(self) -> int:
-        """Delete files in queryset."""
-        return self.change_bool(field="deleted", value=True)
-
-    def undelete(self) -> int:
-        """Undelete files in queryset."""
-        return self.change_bool(field="deleted", value=False)
-
-    def get_permitted(self, user: UserType) -> models.QuerySet["BaseFile"]:
-        """Return files that are approved, published and not deleted, plus files where the user has view_basefile."""
-        approved_files = self.filter(approved=True, published=True, deleted=False).prefetch_related("uploader")
-        perm_files = get_objects_for_user(
-            user=user,
-            perms="files.view_basefile",
-            klass=self.all(),
-        ).prefetch_related("uploader")
-        files = approved_files | perm_files
-        # do not return duplicates
-        return files.distinct()  # type: ignore[no-any-return]
-
-
 class BaseFile(PolymorphicModel):
     """The polymorphic base model inherited by the Picture, Video, Audio, and Document models."""
 
@@ -121,9 +76,9 @@ class BaseFile(PolymorphicModel):
         verbose_name = "file"
         verbose_name_plural = "files"
 
-    objects = PolymorphicManager()
+    objects = PolymorphicManager.from_queryset(BaseFileQuerySet)()
 
-    bmanager = PolymorphicManager.from_queryset(BaseFileQuerySet)()
+    bmanager = BaseFileManager.from_queryset(BaseFileQuerySet)()
 
     uuid = models.UUIDField(
         primary_key=True,
@@ -331,17 +286,15 @@ class BaseFile(PolymorphicModel):
         assign_perm("unpublish_basefile", self.uploader, self)
         assign_perm("softdelete_basefile", self.uploader, self)
         assign_perm("undelete_basefile", self.uploader, self)
-        moderators, created = Group.objects.get_or_create(name=settings.BMA_MODERATOR_GROUP_NAME)
-        if created:
-            logger.debug("Created new group 'moderators'")
         # add moderator permissions
+        moderators = Group.objects.get(name=settings.BMA_MODERATOR_GROUP_NAME)
         assign_perm("view_basefile", moderators, self)
         assign_perm("approve_basefile", moderators, self)
         assign_perm("unapprove_basefile", moderators, self)
 
     def permitted(self, user: UserType | AnonymousUser) -> bool:
         """Convenience method to determine if viewing this file is permitted for a user."""
-        if user.has_perm("files.view_basefile", self) or all([self.approved, self.published, not self.deleted]):
+        if user.has_perm("files.view_basefile", self) or all([self.approved, self.published]):
             return True
         return False
 
@@ -356,3 +309,18 @@ class BaseFile(PolymorphicModel):
     def parse_and_add_tags(self, tags: str, tagger: UserType) -> None:
         """Parse a string of one or more tags and add tags to the file."""
         self.tags.add_user_tags(*_parse_tags(tags), user=tagger)
+
+
+class FileUserObjectPermission(UserObjectPermissionBase):
+    """Use a direct (non-generic) FK for user file permissions in guardian."""
+
+    content_object = models.ForeignKey(BaseFile, related_name="user_permissions", on_delete=models.CASCADE)
+
+
+class FileGroupObjectPermission(GroupObjectPermissionBase):
+    """Use a direct (non-generic) FK for group file permissions in guardian."""
+
+    content_object = models.ForeignKey(BaseFile, related_name="group_permissions", on_delete=models.CASCADE)
+
+
+BaseFileType: TypeAlias = BaseFile

@@ -12,5 +12,6 @@ class UserFactory(factory.django.DjangoModelFactory):
 
         model = User
 
-    public_credit_name = factory.Faker("name")
+    handle = factory.Faker("word")
+    display_name = factory.Faker("name")
     description = factory.Faker("text")

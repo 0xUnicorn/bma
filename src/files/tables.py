@@ -1,8 +1,6 @@
 """This module defines the table used to show files."""
 import django_tables2 as tables
-from albums.models import Album
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.safestring import mark_safe
 
 from .models import BaseFile
@@ -14,22 +12,21 @@ class FileTable(tables.Table):
     selection = tables.CheckBoxColumn(accessor="pk", orderable=False)
     uuid = tables.Column(linkify=True)
     albums = tables.Column(verbose_name="Albums")
+    uploader = tables.Column(linkify=True)
+    hitcount = tables.Column(verbose_name="Hits")
 
     def render_albums(self, record: BaseFile) -> str:
         """Render albums as a list of links."""
         output = ""
-        for album in Album.objects.filter(
-            memberships__basefile__pk__contains=record.pk, memberships__period__contains=timezone.now()
-        ):
-            output += (
-                '<a href="' + reverse("albums:album_detail", kwargs={"pk": album.pk}) + '">' + album.title + "</a><br>"
-            )
+        for album in record.active_albums_list:
+            url = reverse("albums:album_table", kwargs={"album_uuid": album.pk})
+            output += f'<a href="{url}">{album.title}&nbsp;({len(album.active_files_list)})</a><br>'
         return mark_safe(output)  # noqa: S308
 
     def render_tags(self, record: BaseFile) -> str:
         """Render tags in a taggy way."""
         output = ""
-        for tag in record.tags.weighted.all():
+        for tag in record.tag_list:
             output += f'<span class="badge bg-secondary">{tag}</span> '
         return mark_safe(output)  # noqa: S308
 
@@ -48,6 +45,7 @@ class FileTable(tables.Table):
             "license",
             "file_size",
             "tags",
+            "hitcount",
             "approved",
             "published",
             "deleted",

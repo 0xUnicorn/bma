@@ -14,10 +14,10 @@ def get_group_icons(
 ) -> str:
     """Return icons representing group memberships."""
     output = ""
-    if settings.BMA_CREATOR_GROUP_NAME in context["request"].user.groups.values_list("name", flat=True):
+    if settings.BMA_CREATOR_GROUP_NAME in context["request"].user.cached_groups:
         output += '<i class="fa-solid fa-user-ninja"></i> '
-    if settings.BMA_MODERATOR_GROUP_NAME in context["request"].user.groups.values_list("name", flat=True):
+    if settings.BMA_MODERATOR_GROUP_NAME in context["request"].user.cached_groups:
         output += '<i class="fa-solid fa-user-shield"></i> '
-    if settings.BMA_CURATOR_GROUP_NAME in context["request"].user.groups.values_list("name", flat=True):
+    if settings.BMA_CURATOR_GROUP_NAME in context["request"].user.cached_groups:
         output += '<i class="fa-solid fa-user-astronaut"></i> '
     return mark_safe(output)  # noqa: S308

@@ -8,6 +8,8 @@ class AlbumTable(tables.Table):
     """Defines the django-tables2 used to show albums."""
 
     uuid = tables.Column(linkify=True)
+    owner = tables.Column(linkify=True)
+    hitcount = tables.Column(verbose_name="Hits")
 
     class Meta:
         """Define model, template, fields."""
@@ -19,6 +21,7 @@ class AlbumTable(tables.Table):
             "title",
             "description",
             "owner",
+            "hitcount",
             "active_memberships",
             "historic_memberships",
             "future_memberships",

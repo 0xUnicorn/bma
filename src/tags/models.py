@@ -1,4 +1,7 @@
 """Custom taggit models for user-specific tagging of UUID model items."""
+from typing import TypeAlias
+
+import demoji
 from django.db import models
 from taggit.models import ItemBase
 from taggit.models import TagBase
@@ -14,6 +17,11 @@ class BmaTag(TagBase):
         """A string representation of a tag including weight if available."""
         weight = self.weight if hasattr(self, "weight") else 0
         return f"{self.name} ({weight})"
+
+    def slugify(self, tag: str, i: int | None = None) -> str:
+        """Slugify with demoji."""
+        tag = demoji.replace_with_desc(tag)
+        return super().slugify(tag, i)  # type: ignore[no-any-return]
 
 
 class TaggedFile(ItemBase):
@@ -45,3 +53,6 @@ class TaggedFile(ItemBase):
             f"Username {self.tagger.username} tagged {self.content_object.filetype} "
             f"uuid {self.content_object.uuid} with tag {self.tag.name}"
         )
+
+
+BmaTagType: TypeAlias = BmaTag

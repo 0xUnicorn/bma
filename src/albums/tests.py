@@ -14,7 +14,7 @@ Grant = get_grant_model()
 class TestAlbumsApi(ApiTestBase):
     """Test for API endpoints in the albums API."""
 
-    def test_album_create(
+    def test_album_create_api(
         self,
         title: str = "album title here",
         description: str = "album description here",
@@ -23,7 +23,7 @@ class TestAlbumsApi(ApiTestBase):
         """Test creating an album."""
         self.album_uuid = self.album_create(title=title, description=description, files=files)
 
-    def test_album_create_with_files(
+    def test_album_create_api_with_files(
         self,
         title: str = "album title here",
         description: str = "album description here",
@@ -34,10 +34,11 @@ class TestAlbumsApi(ApiTestBase):
             self.files.append(self.file_upload())
         self.album_uuid = self.album_create(title=title, description=description, files=self.files)
 
-    def test_album_update(self) -> None:
-        """First replace then update."""
-        self.test_album_create_with_files()
-        # try with the wrong user
+    def test_album_update_api(self) -> None:
+        """First replace (PUT) then update (PATCH)."""
+        self.test_album_create_api_with_files()
+
+        # try PUT with the wrong user
         response = self.client.put(
             reverse("api-v1-json:album_get", kwargs={"album_uuid": self.album_uuid}),
             {
@@ -50,7 +51,7 @@ class TestAlbumsApi(ApiTestBase):
         )
         assert response.status_code == 403
 
-        # then with the correct user, check mode
+        # then PUT with the correct user, check mode
         response = self.client.put(
             reverse("api-v1-json:album_get", kwargs={"album_uuid": self.album_uuid}) + "?check=true",
             {
@@ -63,7 +64,7 @@ class TestAlbumsApi(ApiTestBase):
         )
         assert response.status_code == 202
 
-        # then with the correct user
+        # then PUT with the correct user
         response = self.client.put(
             reverse("api-v1-json:album_get", kwargs={"album_uuid": self.album_uuid}),
             {
@@ -75,11 +76,11 @@ class TestAlbumsApi(ApiTestBase):
             content_type="application/json",
         )
         assert response.status_code == 200
-        assert len(response.json()["bma_response"]["files"]) == 2
+        assert len(response.json()["bma_response"]["files"]) == 2, "album does not have 2 files after PUT"
         assert response.json()["bma_response"]["title"] == "new title"
         assert response.json()["bma_response"]["description"] == "description here"
 
-        # update the album with more files
+        # PATCH update the album with more files
         response = self.client.patch(
             reverse("api-v1-json:album_get", kwargs={"album_uuid": self.album_uuid}),
             {"files": self.files},
@@ -89,7 +90,7 @@ class TestAlbumsApi(ApiTestBase):
         assert response.status_code == 200
         assert len(response.json()["bma_response"]["files"]) == 10
 
-        # update to remove all files
+        # PATCH update to remove all files
         response = self.client.patch(
             reverse("api-v1-json:album_get", kwargs={"album_uuid": self.album_uuid}),
             {"files": []},
@@ -99,50 +100,19 @@ class TestAlbumsApi(ApiTestBase):
         assert response.status_code == 200
         assert len(response.json()["bma_response"]["files"]) == 0
 
-    def test_album_delete(self) -> None:
-        """Test deleting an album."""
-        self.test_album_create_with_files()
-
-        # test with no auth
-        response = self.client.delete(
-            reverse("api-v1-json:album_get", kwargs={"album_uuid": self.album_uuid}),
-        )
-        assert response.status_code == 403
-
-        # test with wrong auth
-        response = self.client.delete(
-            reverse("api-v1-json:album_get", kwargs={"album_uuid": self.album_uuid}),
-            headers={"authorization": self.user0.auth},
-        )
-        assert response.status_code == 403
-
-        # delete the album, check mode
-        response = self.client.delete(
-            reverse("api-v1-json:album_get", kwargs={"album_uuid": self.album_uuid}) + "?check=true",
-            headers={"authorization": self.curator6.auth},
-        )
-        assert response.status_code == 202
-
-        # delete the album
-        response = self.client.delete(
-            reverse("api-v1-json:album_get", kwargs={"album_uuid": self.album_uuid}),
-            headers={"authorization": self.curator6.auth},
-        )
-        assert response.status_code == 204
-
-    def test_album_get(self) -> None:
+    def test_album_get_api(self) -> None:
         """Get album metadata from the API."""
-        self.test_album_create_with_files()
+        self.test_album_create_api_with_files()
         response = self.client.get(
             reverse("api-v1-json:album_get", kwargs={"album_uuid": self.album_uuid}),
             headers={"authorization": self.curator6.auth},
         )
         assert response.status_code == 200
 
-    def test_album_list(self) -> None:
+    def test_album_list_api(self) -> None:
         """Get album list from the API."""
         for i in range(10):
-            self.test_album_create_with_files(title=f"album{i}")
+            self.test_album_create_api_with_files(title=f"album{i}")
         response = self.client.get(reverse("api-v1-json:album_list"), headers={"authorization": self.curator6.auth})
         assert response.status_code == 200
         assert len(response.json()["bma_response"]) == 10
@@ -209,7 +179,7 @@ class TestAlbumViews(ApiTestBase):
             self.files.append(self.file_upload(uploader="creator3"))
         self.album_create(title="creator3 files", files=self.files[10:], creator="curator7")
 
-    def test_album_list(self) -> None:
+    def test_album_list_view(self) -> None:
         """Test the basics of the album list view."""
         url = reverse("albums:album_list")
         self.create_albums()

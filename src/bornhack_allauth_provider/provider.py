@@ -26,10 +26,9 @@ class BornHackProvider(OAuth2Provider):
         return str(data["user"]["user_id"])
 
     def extract_common_fields(self, data: dict[str, dict[str, str]]) -> dict[str, str]:
-        """Override extract_common_fields to get the needed data."""
+        """Override extract_common_fields to get the data to be used by populate_user()."""
         return {
             "username": data["user"]["username"],
-            "email": data["user"]["username"],
             "public_credit_name": data["profile"]["public_credit_name"],
             "description": data["profile"]["description"],
         }

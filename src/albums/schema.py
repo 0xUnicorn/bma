@@ -2,10 +2,8 @@
 import uuid
 from collections.abc import Sequence
 
-from django.db.models import QuerySet
 from django.http import HttpRequest
 from django.urls import reverse
-from files.models import BaseFile
 from ninja import ModelSchema
 from utils.schema import ApiResponseSchema
 
@@ -33,6 +31,7 @@ class AlbumResponseSchema(ModelSchema):
     """Schema for outputting Albums in API operations."""
 
     links: dict[str, str | dict[str, str]]
+    files: Sequence[uuid.UUID] = []
 
     class Config:
         """Set model and fields."""
@@ -53,13 +52,13 @@ class AlbumResponseSchema(ModelSchema):
         """For now only a self and detail link for albums."""
         return {
             "self": reverse("api-v1-json:album_get", kwargs={"album_uuid": obj.uuid}),
-            "detail": reverse("albums:album_detail", kwargs={"pk": obj.uuid}),
+            "detail": reverse("albums:album_detail", kwargs={"album_uuid": obj.uuid}),
         }
 
     @staticmethod
-    def resolve_files(obj: Album, context: dict[str, HttpRequest]) -> QuerySet[BaseFile]:
+    def resolve_files(obj: Album, context: dict[str, HttpRequest]) -> list[str]:
         """Only get active memberships."""
-        return obj.active_files().all()
+        return [str(f.pk) for f in obj.active_files_list]  # type: ignore[attr-defined]
 
 
 class SingleAlbumResponseSchema(ApiResponseSchema):

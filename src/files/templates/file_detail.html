@@ -6,10 +6,10 @@
 
   <div class="row">
 
-    <div class="col-8">
+    <div class="col-10">
       <div class="row mb-3">
         <div class="col">
-          <h3>{{ file.title }}</h3>
+            <h3>{{ file.filetype|capfirst }} {{ file.title }}</h3>
         </div>
       </div>
       <div class="row">
@@ -24,7 +24,7 @@
       </div>
     </div>
 
-    <div class="col-4">
+    <div class="col-2">
       <div class="row mb-3">
         <div class="col d-flex justify-content-end">
           <div class="dropdown">
@@ -46,14 +46,6 @@
                 <div class="col-6">
                   <h5 class="card-title">Information</h5>
                 </div>
-                <div class="col-6 d-flex justify-content-end">
-                  {% if perms.files.change_basefile %}
-                  <a href="{% url 'files:file_update' file_uuid=file.uuid %}" class="text-muted">
-                    <i class="fa-solid fa-pen-to-square"></i>
-                    <small>Edit</small>
-                  </a>
-                  {% endif %}
-                </div>
               </div>
             </div>
             <div class="card-body">
@@ -67,16 +59,10 @@
                     <dd class="col-sm-9">{{ file.uuid }}</dd>
 
                     <dt class="col-sm-3">Uploader</dt>
-                    <dd class="col-sm-9">{{ file.uploader }}</dd>
+                    <dd class="col-sm-9"><a href="{{ file.uploader.get_absolute_url }}">{{ file.uploader }}</a></dd>
 
                     <dt class="col-sm-3">Attribution</dt>
                     <dd class="col-sm-9">{{ file.attribution }}</dd>
-
-                    <dt class="col-sm-3">Created</dt>
-                    <dd class="col-sm-9">{{ file.created|date:"d/m/y-H:i:s" }}</dd>
-
-                    <dt class="col-sm-3">Updated</dt>
-                    <dd class="col-sm-9">{{ file.updated|date:"d/m/y-H:i:s" }}</dd>
 
                     <dt class="col-sm-3">Source</dt>
                     <dd class="col-sm-9"><a href="{{ file.source }}">{{ file.source }}</a></dd>
@@ -84,11 +70,20 @@
                     <dt class="col-sm-3">License</dt>
                     <dd class="col-sm-9">{{ file.get_license_display }}</dd>
 
+                    <dt class="col-sm-3">Hits</dt>
+                    <dd class="col-sm-9">{{ file.hits.count }}</dd>
+
                     <dt class="col-sm-3 text-truncate">Filename</dt>
                     <dd class="col-sm-9">{{ file.original_filename }}</dd>
 
                     <dt class="col-sm-3">Description</dt>
                     <dd class="col-sm-9"><p>{{ file.description|default:"n/a" }}</p></dd>
+
+                    <dt class="col-sm-3">Created</dt>
+                    <dd class="col-sm-9">{{ file.created|date:"d/m/y-H:i:s" }}</dd>
+
+                    <dt class="col-sm-3">Updated</dt>
+                    <dd class="col-sm-9">{{ file.updated|date:"d/m/y-H:i:s" }}</dd>
                   </dl>
                 </div>
               </div>
@@ -104,8 +99,8 @@
               <h5 class="card-title">Albums</h5>
             </div>
             <div class="card-body" style="max-height:25em; overflow-y:auto;">
-              {% for album in file.albums.all %}
-                <p><a href="{% url 'albums:album_detail' album_uuid=album.uuid %}">{{ album.title }}</a></p>
+              {% for album in file.active_albums_list %}
+                <p><a href="{% url 'albums:album_detail' album_uuid=album.uuid %}">{{ album }}</a></p>
               {% endfor %}
             </div>
           </div>
@@ -114,17 +109,17 @@
 
       <div class="row">
         <div class="col mb-3">
-          <div class="card">
+          <div id="tag-card" class="card">
             <div class="card-header">
-              <h5 class="card-title">Tags</h5>
+                <h5 class="card-title">Tags<a class="btn btn-secondary btn-xs float-end" href="{% url 'files:file_tags' file_uuid=file.uuid %}">Details</a></h5>
             </div>
             <div class="card-body" style="max-height:25em; overflow-y:auto;">
               {% if file.tags.exists %}
               <p>
                 {% if request.user.is_curator %}
-                {% for tag in file.tags.weighted_list %}
+                {% for tag in file.tags.all %}
                   {% if request.user.uuid in tag.tagger_uuids %}
-                  <form method="POST" action="{% url 'files:file_tag_delete' file_uuid=file.pk tag_name=tag.name %}" class="d-inline">
+                  <form method="POST" action="{% url 'files:file_tag_delete' file_uuid=file.pk tag_slug=tag.slug %}" class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-secondary btn-sm" value="DELETE">{{ tag }} <i class="fas fa-minus"></i></button>
                   </form>
@@ -140,7 +135,7 @@
               </p>
               <p><i>Click to tag or untag an existing tag. You can also <a href="{% url 'files:file_tag_create' file_uuid=file.uuid %}">add new tags</a></i></p>
               {% else %}
-              <p>No tags yet. How about adding one?</p>
+              <p>No tags yet. <a class="btn btn-success" href="{% url 'files:file_tag_create' file_uuid=file.uuid %}"><i class="fas fa-plus"></i> Add new tags</a></p>
               {% endif %}
             </div>
           </div>

@@ -24,6 +24,7 @@ repos:
           - "django-stubs-ext"
           - "types-requests"
           - "dealer==2.1.0"
+          - "demoji==1.1.0"
           - "django-allauth==0.61.1"
           - "django-bootstrap5==23.4"
           - "django-cors-headers==4.3.1"

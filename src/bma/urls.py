@@ -5,10 +5,12 @@ from django.urls import include
 from django.urls import path
 from django.urls import re_path
 from files.views import bma_media_view
+from users.views import UserSettingsUpdateView
+from users.views import UserSettingsView
 from utils.admin import file_admin
 from utils.views import csrfview
 
-from .api import api_v1_json
+from bma.api import api_v1_json
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -21,6 +23,9 @@ urlpatterns = [
     path("albums/", include("albums.urls", namespace="albums")),
     path("api/csrf/", csrfview),
     path("widgets/", include("widgets.urls", namespace="widgets")),
+    path("users/", include("users.urls", namespace="users")),
+    path("settings/", UserSettingsView.as_view(), name="user_settings"),
+    path("settings/update/", UserSettingsUpdateView.as_view(), name="user_settings_update"),
 ]
 
 # we are serving media files through nginx using X-Accel-Redirect in prod,

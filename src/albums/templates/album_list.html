@@ -8,11 +8,29 @@
   <div class="row">
     <div class="col-2">
       <div class="card">
+        <h5 class="card-header">Filter Info</h5>
+        <div class="card-body">
+          <p class="lead">Showing {{ filter.qs.count }} of {{ albums|length }} albums.</p>
+        </div>
+      </div>
+      <br>
+      <div class="card">
         <h5 class="card-header">Filter Albums</h5>
         <div class="card-body">
           <form method="get">
+            <div class="row">
+              <div class="btn-group" role="group">
+                <a class="btn btn-warning" href="?"><i class="fas fa-times"></i> Clear Filters</a>
+                <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i> Submit Query</button>
+              </div>
+            </div>
             {% bootstrap_form filter.form %}
-            <input type="submit" />
+            <div class="row">
+              <div class="btn-group" role="group">
+                <a class="btn btn-warning" href="?"><i class="fas fa-times"></i> Clear Filters</a>
+                <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i> Submit Query</button>
+              </div>
+            </div>
           </form>
         </div>
       </div>

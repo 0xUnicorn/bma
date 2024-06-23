@@ -19,19 +19,18 @@ class TagResponseSchema(ModelSchema):
     """The schema used to represent a tag in a response."""
 
     name: str
+    slug: str
     weight: int
 
     class Config:
         """Specify the model fields to allow."""
 
         model = BmaTag
-        model_fields = ("name",)
+        model_fields = ("name", "slug")
 
     @staticmethod
     def resolve_weight(obj: BmaTag) -> int:
         """Get the number of times this tag has been applied to the object."""
-        # NOTE: weight is only available if the weighted tag manager has
-        # been used in the endpoint using this schema
         return obj.weight  # type: ignore[no-any-return]
 
 

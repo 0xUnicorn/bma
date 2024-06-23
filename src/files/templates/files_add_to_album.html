@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+{% block title %}Add Files to Album{% endblock title %}
+
+{% block main_content %}
+<div class="card">
+  <h5 class="card-header">Add Files to Album</h5>
+  <div class="card-body">
+    <form action="{% url 'albums:album_add_files' %}" method="POST">
+      {% csrf_token %}
+      {% bootstrap_field form.album %}
+      {{ form.files_to_add }}
+      <input type="submit" class="btn btn-success" value="Add Files to Album">
+    </form>
+  </div>
+</div>
+{% endblock main_content %}

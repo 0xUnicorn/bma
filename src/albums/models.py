@@ -1,25 +1,33 @@
 """The album model."""
-import datetime
 import logging
 import uuid
+from typing import TypeAlias
 
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import DateTimeRangeField
 from django.contrib.postgres.fields import RangeOperators
 from django.db import models
 from django.db.models import F
-from django.db.models import QuerySet
 from django.urls import reverse
 from django.utils import timezone
 from files.models import BaseFile
+from guardian.models import GroupObjectPermissionBase
+from guardian.models import UserObjectPermissionBase
+from guardian.shortcuts import assign_perm
 from psycopg2.extras import DateTimeTZRange
 from users.sentinel import get_sentinel_user
+
+from .managers import AlbumManager
 
 logger = logging.getLogger("bma")
 
 
-class Album(models.Model):
+class Album(models.Model):  # type: ignore[django-manager-missing]
     """The Album model is used to group files (from all users, like a spotify playlist)."""
+
+    objects = models.Manager()
+
+    bmanager = AlbumManager()
 
     uuid = models.UUIDField(
         primary_key=True,
@@ -62,11 +70,6 @@ class Album(models.Model):
         related_name="albums",
     )
 
-    deleted = models.BooleanField(
-        default=False,
-        help_text="Set true to mark album as deleted.",
-    )
-
     class Meta:
         """Order by created date initially."""
 
@@ -78,30 +81,49 @@ class Album(models.Model):
 
     def get_absolute_url(self) -> str:
         """The detail url for the album."""
-        return reverse("albums:album_detail", kwargs={"pk": self.pk})
+        return reverse("albums:album_detail", kwargs={"album_uuid": self.pk})
 
-    def add_members(self, file_uuids: list[str]) -> None:
+    def add_members(self, *file_uuids: str) -> None:
         """Create new memberships for the file_uuids."""
-        files = BaseFile.objects.filter(uuid__in=file_uuids)
+        # maybe add all at once?
         for u in file_uuids:
-            f = files.get(uuid=u)
-            member, created = AlbumMember.objects.get_or_create(
-                basefile=f,
+            AlbumMember.objects.get_or_create(
+                basefile_id=u,
                 album=self,
+                period__startswith__lte=timezone.now(),
                 period__endswith=None,
             )
 
-    def remove_members(self, file_uuids: list[str]) -> None:
+    def remove_members(self, *file_uuids: str) -> None:
         """End the memberships for the file_uuids."""
+        # maybe do this as one query with F() and .update()
         for membership in self.memberships.filter(basefile__uuid__in=file_uuids, period__endswith__isnull=True):
             membership.period = DateTimeTZRange(membership.period.lower, timezone.now())
             membership.save(update_fields=["period"])
 
-    def active_files(self, when: datetime.datetime | None = None) -> QuerySet[BaseFile]:
-        """Return the active members of this album at a given time."""
-        if when is None:
-            when = timezone.now()
-        return self.files.filter(memberships__period__contains=when)
+    def add_initial_permissions(self) -> None:
+        """Add initial permissions for newly created albums."""
+        assign_perm("change_album", self.owner, self)
+
+    @property
+    def active_files(self) -> models.QuerySet["BaseFile"]:
+        """Return a qs of currently active files, for use when the manager is not available."""
+        return self.files.filter(memberships__period__contains=timezone.now())
+
+    def update_members(self, *file_uuids: str, replace: bool) -> None:
+        """Update active album members to file_uuids, adding/removing or replacing as needed."""
+        current_uuids = set(self.active_files.values_list("uuid", flat=True))
+        if replace:  # PUT
+            # first end all current memberships
+            self.remove_members(*current_uuids)
+            # add the new memberships
+            self.add_members(*file_uuids)
+        else:  # PATCH
+            # we are updating the list of files
+            self.remove_members(*current_uuids.difference(file_uuids))
+            # get the list of files to be added to the album
+            add_uuids = set(file_uuids).difference(current_uuids)
+            self.add_members(*add_uuids)
 
 
 def from_now_to_forever() -> DateTimeTZRange:
@@ -142,7 +164,7 @@ class AlbumMember(models.Model):
     active_members = ActiveAlbumMemberManager()
 
     class Meta:
-        """Add ExclusionConstraints preventing overlaps and adjacent ranges with same availability."""
+        """Make sure a file can only be a member of an album once at any given point in time."""
 
         constraints = (
             # we do not want overlapping memberships
@@ -163,3 +185,18 @@ class AlbumMember(models.Model):
                 f"{self.basefile.uuid} was in album {self.album.uuid} from {self.period.lower} to {self.period.upper}"
             )
         return f"{self.basefile.uuid} is in album {self.album.uuid} from {self.period.lower}"
+
+
+class AlbumUserObjectPermission(UserObjectPermissionBase):
+    """Use a direct (non-generic) FK for user album permissions in guardian."""
+
+    content_object = models.ForeignKey("albums.Album", related_name="user_permissions", on_delete=models.CASCADE)
+
+
+class AlbumGroupObjectPermission(GroupObjectPermissionBase):
+    """Use a direct (non-generic) FK for group album permissions in guardian."""
+
+    content_object = models.ForeignKey("albums.Album", related_name="group_permissions", on_delete=models.CASCADE)
+
+
+AlbumType: TypeAlias = Album

@@ -1,7 +1,6 @@
 """The FileAdminSite used for creators and moderators."""
 from django.conf import settings
 from django.contrib import admin
-from django.contrib.auth.models import Group
 from django.http import HttpRequest
 
 
@@ -14,10 +13,12 @@ class FileAdminSite(admin.AdminSite):
 
     def has_permission(self, request: HttpRequest) -> bool:
         """The FileAdminSite requires is_creator, is_moderator, or is_staff to be True on the User object."""
-        creators, created = Group.objects.get_or_create(name=settings.BMA_CREATOR_GROUP_NAME)
-        moderators, created = Group.objects.get_or_create(name=settings.BMA_MODERATOR_GROUP_NAME)
         return request.user.is_authenticated and any(
-            [creators in request.user.groups.all(), moderators in request.user.groups.all(), request.user.is_staff]
+            [
+                settings.BMA_CREATOR_GROUP_NAME in request.user.cached_groups,
+                settings.BMA_MODERATOR_GROUP_NAME in request.user.cached_groups,
+                request.user.is_staff,
+            ]
         )
 
 

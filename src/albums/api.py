@@ -8,7 +8,6 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from guardian.shortcuts import assign_perm
 from ninja import Query
 from ninja import Router
 from utils.api import AlbumApiResponseType
@@ -63,8 +62,9 @@ def album_create(request: HttpRequest, payload: AlbumRequestSchema) -> AlbumApiR
         album.files.set(payload.dict()["files"])
 
     # assign permissions and return response
-    assign_perm("change_album", request.user, album)
-    assign_perm("delete_album", request.user, album)
+    album.add_initial_permissions()
+    # get from database so the bmanager is used
+    album = Album.bmanager.get(pk=album.pk)
     return 201, {"bma_response": album}
 
 
@@ -76,7 +76,7 @@ def album_create(request: HttpRequest, payload: AlbumRequestSchema) -> AlbumApiR
 )
 def album_get(request: HttpRequest, album_uuid: uuid.UUID) -> AlbumApiResponseType:
     """Return an album."""
-    album = get_object_or_404(Album, uuid=album_uuid)
+    album = get_object_or_404(Album.bmanager.all(), uuid=album_uuid)
     return 200, {"bma_response": album}
 
 
@@ -88,7 +88,7 @@ def album_get(request: HttpRequest, album_uuid: uuid.UUID) -> AlbumApiResponseTy
 )
 def album_list(request: HttpRequest, filters: AlbumFilters = query) -> AlbumApiResponseType:
     """Return a list of albums."""
-    albums = Album.objects.all()
+    albums = Album.bmanager.all()
 
     if filters.files:
         # __in is OR and we want AND, build a query for .exclude() with all file UUIDs
@@ -159,51 +159,19 @@ def album_update(
         data = payload.dict(exclude_unset=True)
         # handle the m2m seperate
         del data["files"]
-        Album.objects.filter(uuid=album.uuid).update(**data)
-        album.refresh_from_db()
+        Album.bmanager.filter(uuid=album.uuid).update(**data)
         if "files" in payload.dict():
-            # we are updating the list of files, get a list of current and new file uuids
-            current_uuids = set(album.active_files().values_list("uuid", flat=True))
-            new_uuids = set(payload.dict()["files"])
-            # get the list to be removed from the album
-            remove_uuids = list(current_uuids.difference(new_uuids))
-            album.remove_members(remove_uuids)
-            # get the list of files to be added to the album
-            add_uuids = new_uuids.difference(current_uuids)
-            album.add_members(file_uuids=list(add_uuids))
+            album.update_members(*payload.dict()["files"], replace=False)
     else:
-        # we are replacing the object, we do want defaults for absent fields
+        # this is PUT so we are replacing the object, we do want defaults for absent fields
         for attr, value in payload.dict(exclude_unset=False).items():
             if attr == "files":
-                # end all current memberships
-                current_uuids = album.active_files().values_list("uuid", flat=True)
-                album.remove_members(list(current_uuids))
-                # add the new memberships
-                album.add_members(file_uuids=value)
-                continue
-            # set the attribute on the album
-            setattr(album, attr, value)
+                # end all current memberships and create new ones
+                album.update_members(*value, replace=True)
+            else:
+                # set the attribute on the album
+                setattr(album, attr, value)
         album.save()
-        album.refresh_from_db()
+    # use bmanager to get the album and return it
+    album = Album.bmanager.get(pk=album.pk)
     return 200, {"bma_response": album}
-
-
-@router.delete(
-    "/{album_uuid}/",
-    response={202: ApiMessageSchema, 204: None, 403: ApiMessageSchema, 404: ApiMessageSchema},
-    summary="Delete an album.",
-)
-def album_delete(
-    request: HttpRequest, album_uuid: uuid.UUID, *, check: bool = False
-) -> tuple[int, dict[str, str] | None]:
-    """Delete an album."""
-    album = get_object_or_404(Album, uuid=album_uuid)
-    if not request.user.has_perm("delete_album", album):
-        # no permission
-        return 403, {"message": "Permission denied."}
-    if check:
-        # check mode requested, don't change anything
-        return 202, {"message": "OK"}
-    album.deleted = True
-    album.save(update_fields=["deleted"])
-    return 204, None

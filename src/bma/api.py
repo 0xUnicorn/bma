@@ -90,17 +90,3 @@ def custom_404_errors(request: HttpRequest, exc: Http404) -> HttpResponse:
         },
         status=404,
     )
-
-
-@api_v1_json.exception_handler(Exception)
-def custom_exception_errors(request: HttpRequest, exc: Exception) -> HttpResponse:
-    """Error handler for uncaught exceptions."""
-    return api_v1_json.create_response(
-        request,
-        {
-            "bma_request": get_request_metadata_schema(request).dict(),
-            "message": "Uncaught django-ninja exception. More information in details.",
-            "details": str(exc),
-        },
-        status=500,
-    )

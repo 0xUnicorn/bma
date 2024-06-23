@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static %}
+{% load django_bootstrap5 %}
+
+{% block title %}{{ user.handle }} Public Profile{% endblock title %}
+
+{% block main_content %}
+  <div class="row">
+    <div class="card">
+      <h5 class="card-header">{{ user.handle }} Public Profile</h5>
+      <div class="card-body">
+        <table class="table">
+          <tbody>
+            <tr>
+              <th>UUID</th>
+              <td>{{ user.pk }}</td>
+            </tr>
+            <tr>
+              <th>Handle</th>
+              <td>{{ user.handle }}</td>
+            </tr>
+            <tr>
+              <th>Member Since</th>
+              <td>{{ user.created_at }}</td>
+            </tr>
+            <tr>
+              <th>Description</th>
+              <td>{{ user.description|default:"N/A" }}</td>
+            </tr>
+            <tr>
+              <th>Files Uploaded</th>
+              <td><a href="{% url 'files:file_list' %}?uploader={{ user.handle }}">{{ user.files.count }}</a></td>
+            </tr>
+            <tr>
+              <th>Albums Created</th>
+              <td><a href="{% url 'albums:album_list' %}?owner={{ user.handle }}">{{ user.albums.count }}</a></td>
+            </tr>
+            <tr>
+              <th>Files Tagged</th>
+              <td>{{ user.taggings.count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock main_content %}
