@@ -176,6 +176,10 @@ class BaseFile(PolymorphicModel):
         """The filetype."""
         return str(self._meta.model_name)
 
+    def __str__(self) -> str:
+        """A string representation."""
+        return f"{self.title} ({self.filetype} {self.pk})"
+
     @property
     def filetype_icon(self) -> str:
         """The filetype icon."""

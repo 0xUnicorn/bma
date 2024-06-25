@@ -58,7 +58,7 @@ class AlbumResponseSchema(ModelSchema):
     @staticmethod
     def resolve_files(obj: Album, context: dict[str, HttpRequest]) -> list[str]:
         """Only get active memberships."""
-        return [str(f.pk) for f in obj.active_files_list]  # type: ignore[attr-defined]
+        return [str(f.pk) for f in obj.active_files_list]
 
 
 class SingleAlbumResponseSchema(ApiResponseSchema):

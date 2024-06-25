@@ -147,7 +147,7 @@ def album_update(
     check: bool = False,
 ) -> AlbumApiResponseType:
     """Update (PATCH) or replace (PUT) an Album."""
-    album = get_object_or_404(Album, uuid=album_uuid)
+    album = get_object_or_404(Album.bmanager.all(), uuid=album_uuid)
     if not request.user.has_perm("change_album", album):
         # no permission
         return 403, {"message": "Permission denied."}

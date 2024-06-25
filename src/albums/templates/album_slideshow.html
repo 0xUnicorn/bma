@@ -78,7 +78,7 @@
                           <tr>
                               <th>{{ file.filetype|capfirst }} Tags <small><a href="{% url 'files:file_tags' file_uuid=file.pk %}">Details</a></th>
                             <td>
-                            {% for tag in file.tags_list %}
+                            {% for tag in file.tags.all %}
                               <span class="badge bg-secondary">{{ tag }}</span>
                             {% empty %}
                             N/A

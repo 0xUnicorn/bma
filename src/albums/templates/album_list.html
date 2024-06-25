@@ -46,7 +46,9 @@
           <a href="{% querystring per_page=250 %}" class="btn btn-outline-primary">250</a>
         </div>
         </div>
+        {% if request.user.is_curator %}
         <a href="{% url 'albums:album_create' %}" class="btn btn-success"><i class="fas fa-plus"></i> Create Album</a>
+        {% endif %}
         {% render_table table %}
         </div>
       </div>

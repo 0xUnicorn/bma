@@ -11,5 +11,17 @@ class AlbumAddFilesForm(forms.Form):
     )
 
     files_to_add = forms.MultipleChoiceField(
-        widget=forms.CheckboxSelectMultiple(attrs={"class": "d-none"}),
+        widget=forms.CheckboxSelectMultiple(),
+    )
+
+
+class AlbumRemoveFilesForm(forms.Form):
+    """This form is used to remove files from an existing album."""
+
+    album = forms.ChoiceField(
+        widget=forms.RadioSelect,
+    )
+
+    files_to_remove = forms.MultipleChoiceField(
+        widget=forms.CheckboxSelectMultiple(),
     )

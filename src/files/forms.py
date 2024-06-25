@@ -50,6 +50,7 @@ class FileMultipleActionForm(forms.Form):
             ("", "----"),
             ("create_album", "Create New Album With Files"),
             ("add_to_album", "Add Files To Existing Album"),
+            ("remove_from_album", "Remove Files From Existing Album"),
         )
     )
 

@@ -21,6 +21,8 @@ class FileTable(tables.Table):
         for album in record.active_albums_list:
             url = reverse("albums:album_table", kwargs={"album_uuid": album.pk})
             output += f'<a href="{url}">{album.title}&nbsp;({len(album.active_files_list)})</a><br>'
+        if not output:
+            output = "N/A"
         return mark_safe(output)  # noqa: S308
 
     def render_tags(self, record: BaseFile) -> str:
@@ -28,6 +30,8 @@ class FileTable(tables.Table):
         output = ""
         for tag in record.tag_list:
             output += f'<span class="badge bg-secondary">{tag}</span> '
+        if not output:
+            output = "N/A"
         return mark_safe(output)  # noqa: S308
 
     class Meta:

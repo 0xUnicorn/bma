@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+{% block title %}Remove Files from Album{% endblock title %}
+
+{% block main_content %}
+<div class="card">
+  <h5 class="card-header">Remove Files From Album</h5>
+  <div class="card-body">
+    <form method="POST" action="{% url 'albums:remove_files_from_album' %}">
+      {% csrf_token %}
+      {% bootstrap_form form %}
+      <input type="submit" class="btn btn-success" value="Remove Files from Album">
+    </form>
+  </div>
+</div>
+{% endblock main_content %}

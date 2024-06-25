@@ -18,9 +18,6 @@ class BaseFileManager(PolymorphicManager):
 
     def get_queryset(self) -> models.QuerySet["BaseFile"]:
         """Prefetch active albums into a list."""
-        # late import to avoid circular import
-        from albums.models import Album
-
         return (  # type: ignore[no-any-return]
             super()
             .get_queryset()
@@ -29,19 +26,11 @@ class BaseFileManager(PolymorphicManager):
             .prefetch_related("group_permissions__group")
             .prefetch_related("group_permissions__permission")
             .prefetch_related(
-                # prefetch active albums to a list
-                models.Prefetch(
-                    "albums",
-                    queryset=Album.bmanager.filter(
-                        memberships__period__contains=timezone.now(),
-                    ).distinct(),
-                    to_attr="active_albums_list",
-                ),
-                # prefetch tags into a list
                 models.Prefetch("tags", to_attr="tag_list"),
             )
             .prefetch_related("hits")
             .annotate(hitcount=Count("hits", distinct=True))
+            .prefetch_active_albums_list(recursive=True)
         )
 
 
@@ -89,3 +78,37 @@ class BaseFileQuerySet(PolymorphicQuerySet):
     def undelete(self) -> int:
         """Undelete files in queryset."""
         return self.change_bool(field="deleted", value=False)
+
+    def prefetch_active_albums_list(self, *, recursive: bool = True) -> models.QuerySet["BaseFile"]:
+        """Prefetch active albums into a list.
+
+        Do NOT use the Album bmanager when prefetching inside the BaseFile bmanager,
+        confusion, sorrow, anger and hatred lies down that path.
+
+        If recursive is True then each prefetched album also gets a prefetch list of active files.
+        """
+        # late import to avoid circular import
+        from albums.models import Album
+
+        if recursive:
+            qs = (
+                Album.objects.filter(
+                    memberships__period__contains=timezone.now(),
+                )
+                .distinct()
+                # prefetch active files for each prefetched album
+                .prefetch_active_files_list(recursive=False)
+            )
+        else:
+            # do not prefetch active albums for each prefetched file
+            qs = Album.objects.filter(
+                memberships__period__contains=timezone.now(),
+            ).distinct()
+
+        return self.prefetch_related(  # type: ignore[no-any-return]
+            models.Prefetch(
+                "albums",
+                queryset=qs,
+                to_attr="active_albums_list",
+            )
+        )

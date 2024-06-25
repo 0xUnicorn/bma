@@ -9,6 +9,9 @@ class CuratorGroupRequiredMixin:
 
     def setup(self, request: HttpRequest, *args: str, **kwargs: dict[str, str]) -> None:
         """Check for membership of settings.BMA_CURATOR_GROUP_NAME and raise PermissionDenied if needed."""
-        if settings.BMA_CURATOR_GROUP_NAME not in request.user.cached_groups:  # type: ignore[union-attr]
+        if (
+            not hasattr(request.user, "cached_groups")
+            or settings.BMA_CURATOR_GROUP_NAME not in request.user.cached_groups
+        ):
             raise PermissionDenied
         super().setup(request, *args, **kwargs)  # type: ignore[misc]

@@ -1133,7 +1133,8 @@ class TestFileViews(ApiTestBase):
         assert "Add Files to Album" in content
         soup = BeautifulSoup(content, "html.parser")
         rows = soup.select("div#id_album > div.form-check")
-        assert len(rows) == 2, "Did not see 2 albums in the form as expected"
+        # there should only be 1 album because the other already has all these files
+        assert len(rows) == 1, "Did not see 1 albums in the form as expected"
 
     ######### FILE DETAIL ####################################
 

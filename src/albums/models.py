@@ -18,16 +18,13 @@ from psycopg2.extras import DateTimeTZRange
 from users.sentinel import get_sentinel_user
 
 from .managers import AlbumManager
+from .managers import AlbumQuerySet
 
 logger = logging.getLogger("bma")
 
 
 class Album(models.Model):  # type: ignore[django-manager-missing]
     """The Album model is used to group files (from all users, like a spotify playlist)."""
-
-    objects = models.Manager()
-
-    bmanager = AlbumManager()
 
     uuid = models.UUIDField(
         primary_key=True,
@@ -70,6 +67,12 @@ class Album(models.Model):  # type: ignore[django-manager-missing]
         related_name="albums",
     )
 
+    objects = models.Manager.from_queryset(AlbumQuerySet)()
+
+    bmanager = AlbumManager.from_queryset(AlbumQuerySet)()
+
+    active_files_list: list["BaseFile"]
+
     class Meta:
         """Order by created date initially."""
 
@@ -83,36 +86,38 @@ class Album(models.Model):  # type: ignore[django-manager-missing]
         """The detail url for the album."""
         return reverse("albums:album_detail", kwargs={"album_uuid": self.pk})
 
-    def add_members(self, *file_uuids: str) -> None:
+    def add_members(self, *file_uuids: str) -> int:
         """Create new memberships for the file_uuids."""
         # maybe add all at once?
+        added = 0
         for u in file_uuids:
-            AlbumMember.objects.get_or_create(
+            _, created = AlbumMember.objects.get_or_create(
                 basefile_id=u,
                 album=self,
                 period__startswith__lte=timezone.now(),
                 period__endswith=None,
             )
+            if created:
+                added += 1
+        return added
 
-    def remove_members(self, *file_uuids: str) -> None:
+    def remove_members(self, *file_uuids: str) -> int:
         """End the memberships for the file_uuids."""
         # maybe do this as one query with F() and .update()
+        removed = 0
         for membership in self.memberships.filter(basefile__uuid__in=file_uuids, period__endswith__isnull=True):
             membership.period = DateTimeTZRange(membership.period.lower, timezone.now())
             membership.save(update_fields=["period"])
+            removed += 1
+        return removed
 
     def add_initial_permissions(self) -> None:
         """Add initial permissions for newly created albums."""
         assign_perm("change_album", self.owner, self)
 
-    @property
-    def active_files(self) -> models.QuerySet["BaseFile"]:
-        """Return a qs of currently active files, for use when the manager is not available."""
-        return self.files.filter(memberships__period__contains=timezone.now())
-
     def update_members(self, *file_uuids: str, replace: bool) -> None:
         """Update active album members to file_uuids, adding/removing or replacing as needed."""
-        current_uuids = set(self.active_files.values_list("uuid", flat=True))
+        current_uuids = {f.pk for f in self.active_files_list}
         if replace:  # PUT
             # first end all current memberships
             self.remove_members(*current_uuids)
@@ -129,14 +134,6 @@ class Album(models.Model):  # type: ignore[django-manager-missing]
 def from_now_to_forever() -> DateTimeTZRange:
     """Return a DateTimeTZRange starting now and never stopping."""
     return DateTimeTZRange(timezone.now(), None)
-
-
-class ActiveAlbumMemberManager(models.Manager):  # type: ignore[type-arg]
-    """Filter away inactive album members."""
-
-    def get_queryset(self):  # type: ignore[no-untyped-def]  # noqa: ANN201
-        """Only get active memberships."""
-        return super().get_queryset().filter(memberships__period__contains=timezone.now())
 
 
 class AlbumMember(models.Model):
@@ -159,9 +156,6 @@ class AlbumMember(models.Model):
         default=from_now_to_forever,
         help_text="The time range of this album membership. End time can be blank.",
     )
-
-    objects = models.Manager()  # Default Manager
-    active_members = ActiveAlbumMemberManager()
 
     class Meta:
         """Make sure a file can only be a member of an album once at any given point in time."""

@@ -1,10 +1,12 @@
 """File views."""
+
 import logging
 import re
 from pathlib import Path
 from urllib.parse import quote
 
 from albums.forms import AlbumAddFilesForm
+from albums.forms import AlbumRemoveFilesForm
 from albums.models import Album
 from django.conf import settings
 from django.contrib import messages
@@ -64,7 +66,7 @@ class FileListView(SingleTableMixin, FilterView):
     filterset_class = FileFilter
     context_object_name = "files"
 
-    def get_queryset(self, queryset: models.QuerySet[BaseFile] | None = None) -> models.QuerySet[BmaTag]:
+    def get_queryset(self, queryset: models.QuerySet[BaseFile] | None = None) -> models.QuerySet[BaseFile]:
         """Use bmanager to get juicy file objects."""
         return BaseFile.bmanager.all()  # type: ignore[no-any-return]
 
@@ -184,11 +186,39 @@ class FileMultipleActionView(LoginRequiredMixin, FormView):  # type: ignore[type
 
         elif form.cleaned_data["action"] == "add_to_album":  # noqa: RET505
             # render a form to pick the album to which the files should be added
-            albums = get_objects_for_user(self.request.user, "change_album", klass=Album)
-            albumform = AlbumAddFilesForm(initial={"files_to_add": form.cleaned_data["selection"]})
-            albumform.fields["album"].choices = albums.values_list("pk", "title")  # type: ignore[attr-defined]
-            albumform.fields["files_to_add"].choices = [(x, x) for x in form.cleaned_data["selection"]]  # type: ignore[attr-defined]
-            return render(self.request, "files_add_to_album.html", context={"form": albumform})
+            albums = get_objects_for_user(self.request.user, "change_album", klass=Album.bmanager.all())
+            # only show albums which doesn't already have all the files as members
+            form_uuids = form.cleaned_data["selection"]
+            form_albums = []
+            for album in albums:
+                album_uuids = [str(f.pk) for f in album.active_files_list]
+                if len(set(album_uuids).intersection(set(form_uuids))) == len(form_uuids):
+                    # all selected files are already a member of this album, skip it
+                    continue
+                form_albums.append(album)
+            album_add_form = AlbumAddFilesForm(initial={"files_to_add": form.cleaned_data["selection"]})
+            choices = [(album.pk, f"{album.title} ({len(album.active_files_list)})") for album in form_albums]
+            album_add_form.fields["album"].choices = choices  # type: ignore[attr-defined]
+            if len(choices) == 1:
+                album_add_form.initial["album"] = choices[0]  # type: ignore[index]
+            album_add_form.fields["files_to_add"].choices = [(x, x) for x in form.cleaned_data["selection"]]  # type: ignore[attr-defined]
+            return render(self.request, "files_add_to_album.html", context={"form": album_add_form})
+
+        elif form.cleaned_data["action"] == "remove_from_album":
+            # render a form to pick the album from which the files should be removed
+            albums = get_objects_for_user(self.request.user, "change_album", klass=Album.bmanager.all())
+            for basefile in form.cleaned_data["selection"]:
+                albums = albums.filter(files__in=[basefile])
+            # put the form together
+            album_remove_form = AlbumRemoveFilesForm(
+                initial={
+                    "files_to_remove": form.cleaned_data["selection"],
+                    "album": albums.first().pk,  # default to selecting the first album
+                }
+            )
+            album_remove_form.fields["album"].choices = albums.values_list("pk", "title")  # type: ignore[attr-defined]
+            album_remove_form.fields["files_to_remove"].choices = [(x, x) for x in form.cleaned_data["selection"]]  # type: ignore[attr-defined]
+            return render(self.request, "files_remove_from_album.html", context={"form": album_remove_form})
         # please mypy
         return None  # type: ignore[return-value]
 
