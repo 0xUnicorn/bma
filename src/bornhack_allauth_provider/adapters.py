@@ -7,6 +7,7 @@ from allauth.socialaccount.models import SocialLogin
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from allauth.utils import build_absolute_uri
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.models import Group
 from django.forms import Form
 from django.http import HttpRequest
@@ -51,9 +52,13 @@ class BornHackSocialAccountAdapter(DefaultSocialAccountAdapter):
     def save_user(self, request: HttpRequest, sociallogin: SocialLogin, form: Form | None = None) -> User:
         """Called on first login with a BornHack socialaccount."""
         user = super().save_user(request, sociallogin, form)
-        # add to curators group
-        curators, created = Group.objects.get_or_create(name=settings.BMA_CURATOR_GROUP_NAME)
-        curators.user_set.add(user)
+        # add to initial groups
+        for group in settings.BMA_INITIAL_GROUPS:
+            Group.objects.get(name=group).user_set.add(user)
+        if settings.BMA_INITIAL_GROUPS:
+            messages.success(
+                request, f"First BMA login, you have been added to the following groups: {settings.BMA_INITIAL_GROUPS}"
+            )
         return user  # type: ignore[no-any-return]
 
     def get_client(self, request: HttpRequest, app: SocialApp) -> OAuth2Client:
